@@ -2,6 +2,7 @@
   "expo": {
     "name": "expence-tracker",
     "slug": "expence-tracker",
+    
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +25,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "supabaseUrl": "https://dclzlgglpthvpkqxdwzj.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjbHpsZ2dscHRodnBrcXhkd3pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3MDc4NjYsImV4cCI6MjA3ODI4Mzg2Nn0.CPpu2anHoajgiuKsoXOZCGkuycsiRe3UxU3V38NUzWY"
     }
   }
 }
