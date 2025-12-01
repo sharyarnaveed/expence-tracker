@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
-import { supabase } from "./lib/SupabaseClient";
+import { supabase } from "../lib/SupabaseClient";
+
 
 const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState("");

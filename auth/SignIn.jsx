@@ -1,8 +1,8 @@
 import React from 'react'
-import { Text, TextInput, TouchableOpacity, View, StyleSheet } from 'react-native'
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useState } from 'react'
-import { supabase } from './lib/SupabaseClient'
+import { supabase } from '../lib/SupabaseClient'
 
 const SignIn = ({navigation}) => {
   const [email, setEmail] = useState('')
@@ -13,7 +13,11 @@ const SignIn = ({navigation}) => {
        email,
     password,
     })
-
+console.log(error);
+if(data.session==null||data.user==null)
+{
+  Alert.alert(error.message)
+}
     console.log(data);
     
   }
