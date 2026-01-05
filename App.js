@@ -5,6 +5,7 @@ import TabsNavigator from './navigation/navigation';
 import SignIn from './auth/SignIn';
 
 import { supabase } from './lib/SupabaseClient';
+import SignUp from './auth/SignUp';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,11 +38,11 @@ export default function Router() {
           ):(
             <>
               <Stack.Screen name="SignIn" component={SignIn} />
+              <Stack.Screen name='SignUp' component={SignUp}/>
  
         </>
           )
         }
-     
 
       </Stack.Navigator>
     </NavigationContainer>

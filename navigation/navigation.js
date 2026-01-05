@@ -3,7 +3,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "../home/Home";
 import Profile from "../home/Profile";
 import { Feather } from "@expo/vector-icons";
-
+import AddExpense from "../home/Add";
+import AntDesign from '@expo/vector-icons/AntDesign';
 const Tab = createBottomTabNavigator();
 
 export default function TabsNavigator() {
@@ -59,7 +60,14 @@ export default function TabsNavigator() {
           ),
         }}
       />
-
+<Tab.Screen
+      name="Add"
+      component={AddExpense}
+      options={{
+          tabBarIcon: ({ color, size }) => (
+          <AntDesign name="plus" size={size} color={color} />
+          ),
+      }}/>
       <Tab.Screen
         name="Profile"
         component={Profile}
@@ -69,6 +77,8 @@ export default function TabsNavigator() {
           ),
         }}
       />
+
+      
     </Tab.Navigator>
   );
 }

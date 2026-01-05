@@ -8,8 +8,22 @@ import {
 } from "react-native";
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from "../lib/SupabaseClient";
 
 const Profile = () => {
+
+  const handleLogout=async()=>{
+    try {
+      console.log("in logout");
+      
+     const {logout}= await supabase.auth.signOut()
+console.log(logout);
+
+    } catch (error) {
+      console.log("failed to log out",error);
+      
+    }
+  }
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -136,7 +150,7 @@ const Profile = () => {
           </View>
 
           {/* LOGOUT BUTTON */}
-          <TouchableOpacity style={styles.logoutButton}>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </ScrollView>
