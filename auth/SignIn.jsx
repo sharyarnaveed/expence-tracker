@@ -1,5 +1,5 @@
 import React from 'react'
-import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert } from 'react-native'
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert,  Platform,KeyboardAvoidingView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useState } from 'react'
 import { supabase } from '../lib/SupabaseClient'
@@ -22,6 +22,10 @@ if(data.session==null||data.user==null)
     
   }
   return (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.card}>
@@ -86,6 +90,7 @@ if(data.session==null||data.user==null)
         </View>
       </SafeAreaView>
     </View>
+    </KeyboardAvoidingView>
   )
 }
 

@@ -13,7 +13,10 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { supabase } from "../lib/SupabaseClient";
 import { Picker } from "@react-native-picker/picker";
 
@@ -27,109 +30,108 @@ const Colors = {
   CARD: "#FFF9F3",
 };
 
-
 export default function AddExpense() {
   const insets = useSafeAreaInsets();
   const bottomSpacing = (insets?.bottom || 16) + 12;
-
+  const [tab, SetTabs] = useState("expense");
   const [amount, setAmount] = useState(0);
   const [category, Setcategory] = useState("");
   const [notes, SetNotes] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [receipt, setReceipt] = useState(null);
-  const thecat=[
-{
-      "id": "food",
-      "name": "Food & Dining",
-      "icon": "utensils",
-      "color": "#FF6B6B"
+  const thecat = [
+    {
+      id: "food",
+      name: "Food & Dining",
+      icon: "utensils",
+      color: "#FF6B6B",
     },
     {
-      "id": "groceries",
-      "name": "Groceries",
-      "icon": "shopping-cart",
-      "color": "#4ECDC4"
+      id: "groceries",
+      name: "Groceries",
+      icon: "shopping-cart",
+      color: "#4ECDC4",
     },
     {
-      "id": "transport",
-      "name": "Transportation",
-      "icon": "bus",
-      "color": "#1A535C"
+      id: "transport",
+      name: "Transportation",
+      icon: "bus",
+      color: "#1A535C",
     },
     {
-      "id": "rent",
-      "name": "Rent",
-      "icon": "home",
-      "color": "#5F27CD"
+      id: "rent",
+      name: "Rent",
+      icon: "home",
+      color: "#5F27CD",
     },
     {
-      "id": "utilities",
-      "name": "Utilities",
-      "icon": "zap",
-      "color": "#F368E0"
+      id: "utilities",
+      name: "Utilities",
+      icon: "zap",
+      color: "#F368E0",
     },
     {
-      "id": "shopping",
-      "name": "Shopping",
-      "icon": "shopping-bag",
-      "color": "#10AC84"
+      id: "shopping",
+      name: "Shopping",
+      icon: "shopping-bag",
+      color: "#10AC84",
     },
     {
-      "id": "health",
-      "name": "Health & Medical",
-      "icon": "heart",
-      "color": "#EE5253"
+      id: "health",
+      name: "Health & Medical",
+      icon: "heart",
+      color: "#EE5253",
     },
     {
-      "id": "education",
-      "name": "Education",
-      "icon": "book",
-      "color": "#54A0FF"
+      id: "education",
+      name: "Education",
+      icon: "book",
+      color: "#54A0FF",
     },
     {
-      "id": "entertainment",
-      "name": "Entertainment",
-      "icon": "film",
-      "color": "#FECB2F"
+      id: "entertainment",
+      name: "Entertainment",
+      icon: "film",
+      color: "#FECB2F",
     },
     {
-      "id": "subscriptions",
-      "name": "Subscriptions",
-      "icon": "repeat",
-      "color": "#8395A7"
+      id: "subscriptions",
+      name: "Subscriptions",
+      icon: "repeat",
+      color: "#8395A7",
     },
     {
-      "id": "travel",
-      "name": "Travel",
-      "icon": "map",
-      "color": "#00D2D3"
+      id: "travel",
+      name: "Travel",
+      icon: "map",
+      color: "#00D2D3",
     },
     {
-      "id": "personal",
-      "name": "Personal Care",
-      "icon": "user",
-      "color": "#576574"
+      id: "personal",
+      name: "Personal Care",
+      icon: "user",
+      color: "#576574",
     },
     {
-      "id": "gifts",
-      "name": "Gifts & Donations",
-      "icon": "gift",
-      "color": "#FF9F43"
+      id: "gifts",
+      name: "Gifts & Donations",
+      icon: "gift",
+      color: "#FF9F43",
     },
     {
-      "id": "insurance",
-      "name": "Insurance",
-      "icon": "shield",
-      "color": "#222F3E"
+      id: "insurance",
+      name: "Insurance",
+      icon: "shield",
+      color: "#222F3E",
     },
     {
-      "id": "other",
-      "name": "Other",
-      "icon": "more-horizontal",
-      "color": "#C8D6E5"
-    }
-  ]
+      id: "other",
+      name: "Other",
+      icon: "more-horizontal",
+      color: "#C8D6E5",
+    },
+  ];
 
   const pickImage = async () => {
     const permissionResult =
@@ -235,6 +237,54 @@ export default function AddExpense() {
     }
   };
 
+  const submitIncome = async () => {
+    try {
+      if (!amount) {
+        Alert.alert("Please enter an amount");
+        return;
+      }
+
+      const { data } = await supabase.auth.getUser();
+      const userid = data.user.id;
+      const { data: addAmountdata, error: incomeError } = await supabase
+        .from("useramount")
+        .select("*")
+        .eq("userid", userid);
+
+      if (incomeError) {
+        console.log(incomeError);
+
+        Alert.alert("Error in Adding Amount!");
+      } else {
+        const savedamount = addAmountdata[0].addedamount;
+        const newamount = savedamount + Number(amount);
+        console.log(newamount);
+        const { error: IncomeUpdateError } = await supabase
+          .from("useramount")
+          .update({ addedamount: newamount })
+          .eq("userid", userid);
+
+        if (IncomeUpdateError) {
+          console.log(IncomeUpdateError);
+          Alert.alert("Error in Adding Amount!");
+          return;
+        } else {
+          const { data: addAmountdataHistory, error: incomeErrorHistory } =
+            await supabase
+              .from("addmounthistory")
+              .insert({ userid: userid, amount });
+          if (incomeErrorHistory) {
+            console.log(incomeErrorHistory);
+            Alert.alert("Error in Adding Amount History!");
+          }
+          Alert.alert("Amount added!");
+        }
+      }
+    } catch (error) {
+      console.log("error in submitting income", error);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -253,135 +303,245 @@ export default function AddExpense() {
 
           <View style={styles.headerContainer}>
             <View style={styles.headerDecor} />
-            <Text style={styles.header}>💰 Add Expense</Text>
+            <Text style={styles.header}>Add Expense/Amount</Text>
             <Text style={styles.subHeader}>Track your spending wisely</Text>
-            <View style={styles.tagRow}>
-              <View style={styles.tagChip}>
-                <Text style={styles.tagText}>Secure Supabase sync</Text>
-              </View>
-              <View style={styles.tagChipSecondary}>
-                <Text style={styles.tagTextSecondary}>Attach receipts easily</Text>
-              </View>
-            </View>
           </View>
+          <View style={styles.tabSwitch}>
+            <TouchableOpacity
+              onPress={() => SetTabs("expense")}
+              activeOpacity={0.85}
+              style={[
+                styles.tabButton,
+                tab === "expense" && styles.tabButtonActive,
+              ]}
+            >
+              <View style={styles.tabIconBadge}>
+                <Text
+                  style={[
+                    styles.tabIcon,
+                    tab === "expense" && styles.tabIconActive,
+                  ]}
+                >
+                  💸
+                </Text>
+              </View>
+              <View style={styles.tabTextGroup}>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    tab === "expense" && styles.tabLabelActive,
+                  ]}
+                >
+                  Add Expense
+                </Text>
+                <Text
+                  style={[
+                    styles.tabSubLabel,
+                    tab === "expense" && styles.tabSubLabelActive,
+                  ]}
+                >
+                  Track a new cost
+                </Text>
+              </View>
+            </TouchableOpacity>
 
-          <View style={[styles.card, { marginBottom: bottomSpacing }]}>
-            <View style={styles.amountSection}>
-              <Text style={styles.amountLabel}>Amount</Text>
-              <View style={styles.amountInputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
+            <TouchableOpacity
+              onPress={() => SetTabs("amount")}
+              activeOpacity={0.85}
+              style={[
+                styles.tabButton,
+                tab === "amount" && styles.tabButtonActive,
+              ]}
+            >
+              <View style={styles.tabIconBadge}>
+                <Text
+                  style={[
+                    styles.tabIcon,
+                    tab === "amount" && styles.tabIconActive,
+                  ]}
+                >
+                  ➕
+                </Text>
+              </View>
+              <View style={styles.tabTextGroup}>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    tab === "amount" && styles.tabLabelActive,
+                  ]}
+                >
+                  Add Amount
+                </Text>
+                <Text
+                  style={[
+                    styles.tabSubLabel,
+                    tab === "amount" && styles.tabSubLabelActive,
+                  ]}
+                >
+                  Record an income
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          {tab === "expense" && (
+            <View style={[styles.card, { marginBottom: bottomSpacing }]}>
+              <View style={styles.amountSection}>
+                <Text style={styles.amountLabel}>Amount</Text>
+                <View style={styles.amountInputContainer}>
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    style={styles.amountInput}
+                    value={amount}
+                    onChangeText={setAmount}
+                    editable
+                    cursorColor={Colors.THIRD}
+                    placeholderTextColor="#CCC"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.label}>📁 Category</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={category}
+                  onValueChange={(value) => Setcategory(value)}
+                  style={styles.picker}
+                  dropdownIconColor={Colors.DARK}
+                >
+                  <Picker.Item label="-- Select Category --" value={null} />
+                  {thecat.map((item) => (
+                    <Picker.Item
+                      key={item.id}
+                      label={item.name}
+                      value={item.id}
+                    />
+                  ))}
+                </Picker>
+              </View>
+
+              <Text style={styles.label}>📅 Date</Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                style={styles.dateButton}
+                activeOpacity={0.7}
+              >
+                <View style={styles.dateContent}>
+                  <Text style={styles.dateText}>{date.toDateString()}</Text>
+                  <Text style={styles.dateIcon}>▼</Text>
+                </View>
+              </TouchableOpacity>
+
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  onChange={(event, selectedDate) => {
+                    const currentDate = selectedDate || date;
+                    setShowDatePicker(false);
+                    setDate(currentDate);
+                  }}
+                />
+              )}
+
+              <Text style={styles.label}>📝 Notes</Text>
+              <View style={styles.inputWrapper}>
                 <TextInput
-                  placeholder="0.00"
-                  keyboardType="numeric"
-                  style={styles.amountInput}
-                  value={amount}
-                  onChangeText={setAmount}
+                  placeholder="Add any additional notes..."
+                  multiline
+                  style={[styles.input, styles.notesInput]}
+                  value={notes}
+                  onChangeText={SetNotes}
                   editable
                   cursorColor={Colors.THIRD}
-                  placeholderTextColor="#CCC"
+                  placeholderTextColor="#AAA"
+                  textAlignVertical="top"
                 />
               </View>
-            </View>
 
-            <View style={styles.divider} />
-
-            <Text style={styles.label}>📁 Category</Text>
-            <View style={styles.inputWrapper}>
-     <Picker selectedValue={category} onValueChange={(value)=>Setcategory(value)}>
-      <Picker.Item label="-- Select Category --" value={null} />
-      {thecat.map((item) => (
-            <Picker.Item
-              key={item.id}
-              label={item.name}
-              value={item.id}
-            />
-          ))}
-
-     </Picker>
-            </View>
-
-            <Text style={styles.label}>📅 Date</Text>
-            <TouchableOpacity
-              onPress={() => setShowDatePicker(true)}
-              style={styles.dateButton}
-              activeOpacity={0.7}
-            >
-              <View style={styles.dateContent}>
-                <Text style={styles.dateText}>{date.toDateString()}</Text>
-                <Text style={styles.dateIcon}>▼</Text>
-              </View>
-            </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                onChange={(event, selectedDate) => {
-                  const currentDate = selectedDate || date;
-                  setShowDatePicker(false);
-                  setDate(currentDate);
-                }}
-              />
-            )}
-
-            <Text style={styles.label}>📝 Notes</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                placeholder="Add any additional notes..."
-                multiline
-                style={[styles.input, styles.notesInput]}
-                value={notes}
-                onChangeText={SetNotes}
-                editable
-                cursorColor={Colors.THIRD}
-                placeholderTextColor="#AAA"
-                textAlignVertical="top"
-              />
-            </View>
-
-            <Text style={styles.label}>📎 Upload Receipt (Optional)</Text>
-            <TouchableOpacity
-              onPress={pickImage}
-              style={styles.uploadButton}
-              activeOpacity={0.8}
-            >
-              <View style={styles.uploadContent}>
-                <View style={styles.uploadIconCircle}>
-                  <Text style={styles.uploadIcon}>📷</Text>
+              <Text style={styles.label}>📎 Upload Receipt (Optional)</Text>
+              <TouchableOpacity
+                onPress={pickImage}
+                style={styles.uploadButton}
+                activeOpacity={0.8}
+              >
+                <View style={styles.uploadContent}>
+                  <View style={styles.uploadIconCircle}>
+                    <Text style={styles.uploadIcon}>📷</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.uploadText}>Choose Image</Text>
+                    <Text style={styles.uploadSubtext}>
+                      JPG, PNG up to 10MB
+                    </Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.uploadText}>Choose Image</Text>
-                  <Text style={styles.uploadSubtext}>JPG, PNG up to 10MB</Text>
+              </TouchableOpacity>
+
+              {receipt && (
+                <View style={styles.receiptContainer}>
+                  <Image
+                    source={{ uri: receipt }}
+                    style={styles.receiptPreview}
+                  />
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => setReceipt(null)}
+                  >
+                    <Text style={styles.removeButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                onPress={submittheamount}
+                style={[styles.saveButton, { marginBottom: bottomSpacing }]}
+                activeOpacity={0.8}
+              >
+                <View style={styles.saveButtonContent}>
+                  <Text style={styles.saveText}>Save Expense</Text>
+                  <Text style={styles.saveIcon}>✓</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+          {tab === "amount" && (
+            <View style={[styles.card, { marginBottom: bottomSpacing }]}>
+              <View style={styles.amountSection}>
+                <Text style={styles.amountLabel}>Amount</Text>
+                <View style={styles.amountInputContainer}>
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    style={styles.amountInput}
+                    value={amount}
+                    onChangeText={setAmount}
+                    editable
+                    cursorColor={Colors.THIRD}
+                    placeholderTextColor="#CCC"
+                  />
                 </View>
               </View>
-            </TouchableOpacity>
 
-            {receipt && (
-              <View style={styles.receiptContainer}>
-                <Image
-                  source={{ uri: receipt }}
-                  style={styles.receiptPreview}
-                />
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => setReceipt(null)}
-                >
-                  <Text style={styles.removeButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <TouchableOpacity
-              onPress={submittheamount}
-              style={[styles.saveButton, { marginBottom: bottomSpacing }]}
-              activeOpacity={0.8}
-            >
-              <View style={styles.saveButtonContent}>
-                <Text style={styles.saveText}>Save Expense</Text>
-                <Text style={styles.saveIcon}>✓</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                onPress={submitIncome}
+                style={[
+                  styles.saveButton,
+                  { marginTop: 10, marginBottom: bottomSpacing },
+                ]}
+                activeOpacity={0.8}
+              >
+                <View style={styles.saveButtonContent}>
+                  <Text style={styles.saveText}>Save Amount</Text>
+                  <Text style={styles.saveIcon}>➜</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>
@@ -389,6 +549,85 @@ export default function AddExpense() {
 }
 
 const styles = StyleSheet.create({
+  pickerContainer: {
+    backgroundColor: Colors.LIGHT,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#E8E8E8",
+    overflow: "hidden",
+  },
+  tabSwitch: {
+    flexDirection: "row",
+    gap: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 8,
+    backgroundColor: "rgba(72, 66, 109, 0.06)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.14)",
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.CARD,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.THIRD,
+    borderColor: Colors.THIRD,
+    shadowOpacity: 0.16,
+    elevation: 4,
+  },
+  tabIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(72, 66, 109, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  tabIcon: {
+    fontSize: 20,
+  },
+  tabIconActive: {
+    color: Colors.DARK,
+  },
+  tabTextGroup: {
+    flex: 1,
+  },
+  tabLabel: {
+    fontWeight: "800",
+    fontSize: 15,
+    color: Colors.SECOND,
+  },
+  tabLabelActive: {
+    color: Colors.DARK,
+  },
+  tabSubLabel: {
+    fontSize: 12,
+    color: Colors.MUTED,
+    marginTop: 2,
+  },
+  tabSubLabelActive: {
+    color: Colors.SECOND,
+  },
+  picker: {
+    backgroundColor: Colors.LIGHT,
+    color: Colors.DARK,
+    fontSize: 16,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.LIGHT,
@@ -487,7 +726,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   tagTextSecondary: {
-    color: Colors.DARK,
+    color: Colors.FORTH,
     fontWeight: "700",
     fontSize: 12,
     letterSpacing: 0.2,

@@ -5,12 +5,13 @@ import {
   TouchableOpacity,
   View,
   StyleSheet,
+  KeyboardAvoidingView,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import { supabase } from "../lib/SupabaseClient";
-
 
 const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -18,132 +19,154 @@ const SignUp = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [Repassword, setRePassword] = useState("");
 
-
-const handlesignup = async () => {
-  if (!email || !password || !fullname) {
-    Alert.alert("Missing fields", "Please fill name, email and password");
-    return;
-  }
-  if (password !== Repassword) {
-    Alert.alert("Password mismatch", "Passwords do not match");
-    return;
-  }
-
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullname,
-        },
-      },
-    });
-
-    if (error) {
-      console.log("supabase error", error);
-      Alert.alert("Sign up failed", error.message || JSON.stringify(error));
+  const handlesignup = async () => {
+    if (!email || !password || !fullname) {
+      Alert.alert("Missing fields", "Please fill name, email and password");
+      return;
+    }
+    if (password !== Repassword) {
+      Alert.alert("Password mismatch", "Passwords do not match");
       return;
     }
 
-    console.log("signup data", data);
-    Alert.alert("Success", "Check your email for a confirmation link (if required).");
-    navigation.navigate("SignIn");
-  } catch (err) {
-    console.log("error in creating account", err);
-    Alert.alert("Unexpected error", "See console for details");
-  }
-}
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullname,
+          },
+          emailRedirectTo: "https://expense-tracker-nu-rust-79.vercel.app/auth/callback",
+        },
+        
+      });
+
+      if (error) {
+        console.log("supabase error", error);
+        Alert.alert("Sign up failed");
+        return;
+      }
+
+      const userid = data.user?.id;
+
+      if (userid) {
+        const { data: CreateAmount, error: ErrorAmount } = await supabase
+          .from("useramount")
+          .insert({
+            userid,
+          });
+
+        if (ErrorAmount) {
+          Alert.alert("Sign up failed");
+        }
+      }
+
+      Alert.alert(
+        "Success",
+        "Check your email for a confirmation link (if required)."
+      );
+      navigation.navigate("SignIn");
+    } catch (err) {
+      console.log("error in creating account", err);
+      Alert.alert("Unexpected error", "See console for details");
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.card}>
-          <View style={styles.accentBar} />
-          <Text style={styles.heading}>Sign Up</Text>
-          <Text style={styles.subheading}>Welcome back to your tracker</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.card}>
+            <View style={styles.accentBar} />
+            <Text style={styles.heading}>Sign Up</Text>
+            <Text style={styles.subheading}>Welcome back to your tracker</Text>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
-              value={fullname}
-              onChangeText={setFullname}
-              keyboardType="default"
-              editable
-              cursorColor="#F0C38E"
-            />
-          </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Full Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor="#999"
+                value={fullname}
+                onChangeText={setFullname}
+                keyboardType="default"
+                editable
+                cursorColor="#F0C38E"
+              />
+            </View>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              editable
-              cursorColor="#F0C38E"
-            />
-          </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>Email Address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor="#999"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                editable
+                cursorColor="#F0C38E"
+              />
+            </View>
 
-          {/* Password Input */}
-          <View style={styles.fieldSmall}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              keyboardType="visible-password"
-              editable
-              cursorColor="#F0C38E"
-            />
-          </View>
+            {/* Password Input */}
+            <View style={styles.fieldSmall}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                keyboardType="visible-password"
+                editable
+                cursorColor="#F0C38E"
+              />
+            </View>
 
-          <View style={styles.fieldSmall}>
-            <Text style={styles.label}> Re-Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#999"
-              value={Repassword}
-              onChangeText={setRePassword}
-              secureTextEntry
-              keyboardType="visible-password"
-              editable
-              cursorColor="#F0C38E"
-            />
-          </View>
+            <View style={styles.fieldSmall}>
+              <Text style={styles.label}> Re-Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                value={Repassword}
+                onChangeText={setRePassword}
+                secureTextEntry
+                keyboardType="visible-password"
+                editable
+                cursorColor="#F0C38E"
+              />
+            </View>
 
-          {/* Sign In Button */}
-          <TouchableOpacity style={styles.button} onPress={handlesignup}>
-            <Text style={styles.buttonText}>Sign Up</Text>
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Sign Up Link */}
-          <View style={styles.signUpRow}>
-            <Text style={styles.note}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
-              <Text style={styles.signUp}>Sign In</Text>
+            {/* Sign In Button */}
+            <TouchableOpacity style={styles.button} onPress={handlesignup}>
+              <Text style={styles.buttonText}>Sign Up</Text>
             </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Sign Up Link */}
+            <View style={styles.signUpRow}>
+              <Text style={styles.note}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+                <Text style={styles.signUp}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
-    </View>
+        </SafeAreaView>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
