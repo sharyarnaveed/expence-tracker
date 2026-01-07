@@ -1,13 +1,77 @@
-import { View, Text, StyleSheet, Image, Dimensions, ScrollView } from "react-native";
-import React from "react";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Dimensions,
+  ScrollView,
+  Alert,
+} from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
+import { supabase } from "../lib/SupabaseClient";
 
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const bottomSpace = (insets?.bottom || 16) + 120; // extra padding to clear floating tab bar
   const chartData = [50, 10, 40, 95, 85, 35, 70];
 
+  const [currentamount, SetcurrentAmount] = useState(0);
+  const [montlyadded, SetMonthlyadded] = useState(0);
+  const [montlyExpense, SetMonthlyExpense] = useState(0);
+
+  const getuserdata = async () => {
+    const { data } = await supabase.auth.getUser();
+    const username = data.user.user_metadata.full_name;
+    const userid = data.user.id;
+
+    const { data: getCurrentbalance, error: errorcurrentbalance } =
+      await supabase
+        .from("useramount")
+        .select("addedamount")
+        .eq("userid", userid)
+        .single();
+    SetcurrentAmount(getCurrentbalance.addedamount);
+
+    if (errorcurrentbalance) {
+      Alert.alert("Cant Get Current Balance!");
+    }
+
+    const { data: totaladded, error: errortotaladded } = await supabase.rpc(
+      "get_monthly_amounts",
+      {
+        user_id: userid,
+      }
+    );
+
+    if (errortotaladded) {
+      console.error(errortotaladded);
+    }
+
+    const { data: totalspent, error: errortotalspent } = await supabase.rpc(
+      "get_monthly_expense",
+      {
+        user_id: userid,
+      }
+    );
+
+    if (errortotalspent) {
+      console.error(errortotalspent);
+    }
+
+
+    SetMonthlyadded(totaladded[0].total_amount);
+    SetMonthlyExpense(totalspent[0].total_amount)
+    console.log(totalspent);
+  };
+
+  useEffect(() => {
+    getuserdata();
+  }, []);
   return (
     <View style={styles.container}>
       <View style={styles.heroBackdrop}>
@@ -43,17 +107,21 @@ const HomeScreen = () => {
           {/* MAIN BALANCE CARD */}
           <View style={styles.mainCard}>
             <Text style={styles.label}>Current Balance</Text>
-            <Text style={styles.bigAmount}>$1,245.62</Text>
+            <Text style={styles.bigAmount}>${currentamount}</Text>
 
             <View style={styles.rowBetween}>
               <View style={styles.statBlock}>
                 <Text style={styles.statLabel}>Income</Text>
-                <Text style={[styles.statValue, { color: "#00E676" }]}>$2,000</Text>
+                <Text style={[styles.statValue, { color: "#00E676" }]}>
+                  ${montlyadded}
+                </Text>
               </View>
 
               <View style={styles.statBlock}>
                 <Text style={styles.statLabel}>Expenses</Text>
-                <Text style={[styles.statValue, { color: "#FF5252" }]}>$754.38</Text>
+                <Text style={[styles.statValue, { color: "#FF5252" }]}>
+                  ${montlyExpense}
+                </Text>
               </View>
             </View>
           </View>
@@ -83,16 +151,20 @@ const HomeScreen = () => {
             <View style={styles.chartHeader}>
               <View>
                 <Text style={styles.chartTitle}>Weekly flow</Text>
-                <Text style={styles.chartSubtitle}>Smoothed average, last 7 days</Text>
+                <Text style={styles.chartSubtitle}>
+                  Smoothed average, last 7 days
+                </Text>
               </View>
               <Text style={styles.chartDelta}>+12%</Text>
             </View>
             <LineChart
               data={{
                 labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                datasets: [{
-                  data: chartData
-                }]
+                datasets: [
+                  {
+                    data: chartData,
+                  },
+                ],
               }}
               width={Dimensions.get("window").width - 74}
               height={180}
@@ -104,7 +176,7 @@ const HomeScreen = () => {
                 color: (opacity = 1) => Colors.SECOND,
                 labelColor: (opacity = 1) => Colors.MUTED,
                 style: {
-                  borderRadius: 16
+                  borderRadius: 16,
                 },
                 propsForDots: {
                   r: "4",
@@ -114,16 +186,15 @@ const HomeScreen = () => {
                 },
                 propsForBackgroundLines: {
                   stroke: "rgba(72, 66, 109, 0.1)",
-                }
+                },
               }}
               bezier
               style={{
-                borderRadius: 16
+                borderRadius: 16,
               }}
             />
           </View>
         </ScrollView>
-
       </SafeAreaView>
     </View>
   );
@@ -140,7 +211,6 @@ const Colors = {
 };
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: Colors.LIGHT,

@@ -145,7 +145,6 @@ export default function AddExpense() {
       mediaTypes: "images",
       quality: 1,
     });
-    console.log(result);
 
     if (!result.canceled) {
       setReceipt(result.assets[0].uri);
@@ -194,14 +193,16 @@ export default function AddExpense() {
         return;
       }
       if (receipt) {
+        //if we have image
         const { data } = await supabase.auth.getUser();
         const fileName = await uploadimage(data.user.id); // return only filename
+        const userid = data.user.id;
 
         const { data: DataSubmit, error: Datasubmiterror } = await supabase
           .from("userhistory")
           .insert({
             amount,
-            userid: data.user.id, // make sure this matches
+            userid: userid, // make sure this matches
             categoryname: category,
             date,
             uploadimg: fileName, // ⬅️ store only filename
@@ -211,10 +212,41 @@ export default function AddExpense() {
         if (Datasubmiterror) {
           Alert.alert("Error in Adding Expense!");
         } else {
+          const { data: addAmountdata, error: incomeError } = await supabase
+            .from("useramount")
+            .select("*")
+            .eq("userid", userid);
+
+          if (incomeError) {
+            console.log(incomeError);
+
+            Alert.alert("Error in Detucting Amount from Current!");
+          }
+          const savedamount = addAmountdata[0].addedamount;
+          const newamount = savedamount - Number(amount);
+          const { error: IncomeUpdateError } = await supabase
+            .from("useramount")
+            .update({ addedamount: newamount })
+            .eq("userid", userid);
+
+          if (IncomeUpdateError) {
+            console.log(IncomeUpdateError);
+            Alert.alert("Error in Adding Amount!");
+            return;
+          }
+
           Alert.alert("Expense added!");
+          setAmount(0);
+          Setcategory("");
+          SetNotes("");
+          setDate(new Date());
+          setReceipt(null);
         }
-      } else {
+      }
+      // if no image
+      else {
         const { data } = await supabase.auth.getUser();
+        const userid = data.user.id;
 
         const { data: DataSubmit, error: Datasubmiterror } = await supabase
           .from("userhistory")
@@ -229,8 +261,33 @@ export default function AddExpense() {
         if (Datasubmiterror) {
           Alert.alert("Error in Adding Expense!");
         }
-        console.log(data);
+        const { data: addAmountdata, error: incomeError } = await supabase
+          .from("useramount")
+          .select("*")
+          .eq("userid", userid);
+
+        if (incomeError) {
+          console.log(incomeError);
+
+          Alert.alert("Error in Detucting Amount from Current!");
+        }
+        const savedamount = addAmountdata[0].addedamount;
+        const newamount = savedamount - Number(amount);
+        const { error: IncomeUpdateError } = await supabase
+          .from("useramount")
+          .update({ addedamount: newamount })
+          .eq("userid", userid);
+
+        if (IncomeUpdateError) {
+          console.log(IncomeUpdateError);
+          Alert.alert("Error in Adding Amount!");
+          return;
+        }
         Alert.alert("Expense added!");
+        setAmount(0);
+        Setcategory("");
+        SetNotes("");
+        setDate(new Date());
       }
     } catch (error) {
       console.log("error in submitting", error);
@@ -258,7 +315,6 @@ export default function AddExpense() {
       } else {
         const savedamount = addAmountdata[0].addedamount;
         const newamount = savedamount + Number(amount);
-        console.log(newamount);
         const { error: IncomeUpdateError } = await supabase
           .from("useramount")
           .update({ addedamount: newamount })
@@ -277,7 +333,9 @@ export default function AddExpense() {
             console.log(incomeErrorHistory);
             Alert.alert("Error in Adding Amount History!");
           }
+
           Alert.alert("Amount added!");
+          setAmount(0);
         }
       }
     } catch (error) {
