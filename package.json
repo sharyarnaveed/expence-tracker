@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.39.3",
     "d3-shape": "^3.2.0",
     "expo": "~54.0.30",
+    "expo-checkbox": "~5.0.8",
     "expo-image-picker": "~17.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",

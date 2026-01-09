@@ -8,18 +8,25 @@ import {
   KeyboardAvoidingView,
   Alert,
   Platform,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import { supabase } from "../lib/SupabaseClient";
+import Checkbox from "expo-checkbox";
 
 const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [fullname, setFullname] = useState("");
   const [password, setPassword] = useState("");
   const [Repassword, setRePassword] = useState("");
-
+  const [isChecked, setIsChecked] = useState(false);
   const handlesignup = async () => {
+    if (!isChecked) {
+      Alert.alert("Accept the Terms and Conditions!");
+      return;
+    }
+
     if (!email || !password || !fullname) {
       Alert.alert("Missing fields", "Please fill name, email and password");
       return;
@@ -37,9 +44,9 @@ const SignUp = ({ navigation }) => {
           data: {
             full_name: fullname,
           },
-          emailRedirectTo: "https://expense-tracker-nu-rust-79.vercel.app/auth/callback",
+          emailRedirectTo:
+            "https://expense-tracker-nu-rust-79.vercel.app/auth/callback",
         },
-        
       });
 
       if (error) {
@@ -142,6 +149,29 @@ const SignUp = ({ navigation }) => {
                 editable
                 cursorColor="#F0C38E"
               />
+            </View>
+
+            {/* Terms and Conditions */}
+            <View style={styles.termsRow}>
+              <Checkbox
+                value={isChecked}
+                onValueChange={setIsChecked}
+                color={isChecked ? "#4CAF50" : "#aaa"}
+                style={styles.checkbox}
+              />
+              <Text style={styles.termsText}>
+                I accept the{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() =>
+                    Linking.openURL(
+                      "https://expense-tracker-nu-rust-79.vercel.app/termsandcondition"
+                    )
+                  }
+                >
+                  Terms and Conditions
+                </Text>
+              </Text>
             </View>
 
             {/* Sign In Button */}
@@ -298,6 +328,27 @@ const styles = StyleSheet.create({
     color: "#F1AA9B",
     fontWeight: "700",
     fontSize: 14,
+    textDecorationLine: "underline",
+  },
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  checkbox: {
+    marginRight: 10,
+    width: 20,
+    height: 20,
+  },
+  termsText: {
+    color: "#F0C38E",
+    fontSize: 14,
+    flex: 1,
+  },
+  termsLink: {
+    color: "#F1AA9B",
+    fontWeight: "700",
     textDecorationLine: "underline",
   },
 });
