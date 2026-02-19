@@ -6,11 +6,15 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import React from "react";
+import React, { useEffect, useEffectEvent } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/SupabaseClient";
 
 const Profile = () => {
+
+  const [fullname,setFullname]=React.useState("")
+  const [email,setEmail]=React.useState("")
+
 
   const handleLogout=async()=>{
     try {
@@ -24,6 +28,28 @@ console.log(logout);
       
     }
   }
+
+  const GetUsersdata=async()=>{
+  try {
+    const {data,error}= await supabase.auth.getUser()
+
+    console.log(data,error);
+    if(data){
+      setEmail(data.user.email)
+      setFullname(data.user.user_metadata.full_name)
+    }
+    // ✅ Correct - count is an option in select()
+const result = await supabase.from("userhistory").select("*", { count: "exact" })
+    console.log(result);
+  } catch (error) {
+    console.log("error in getting users data",error);
+    
+  }
+  }
+
+  useEffect(()=>{
+    GetUsersdata()
+  },[])
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -35,13 +61,13 @@ console.log(logout);
           <View style={styles.headerSection}>
             <View style={styles.profileImageContainer}>
               <Image
-                source={{ uri: "https://i.pravatar.cc/150?img=10" }}
+                source={{ uri: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150" }}
                 style={styles.profileImage}
               />
               <View style={styles.statusDot} />
             </View>
-            <Text style={styles.userName}>Sharyar Naveed</Text>
-            <Text style={styles.userEmail}>sharyar@example.com</Text>
+            <Text style={styles.userName}>{fullname}</Text>
+            <Text style={styles.userEmail}>{email}</Text>
           </View>
 
           {/* STATS ROW */}
@@ -78,34 +104,6 @@ console.log(logout);
               </View>
               <Text style={styles.cardTitle}>Currency</Text>
               <Text style={styles.cardValue}>USD ($)</Text>
-            </TouchableOpacity>
-
-            {/* Theme Card */}
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: Colors.FORTH }]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardBadge}>
-                  <Text style={styles.cardBadgeText}>THE</Text>
-                </View>
-              </View>
-              <Text style={styles.cardTitle}>Theme</Text>
-              <Text style={styles.cardValue}>Dark</Text>
-            </TouchableOpacity>
-
-            {/* Notifications Card */}
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: Colors.SECOND }]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardBadge}>
-                  <Text style={styles.cardBadgeText}>ALR</Text>
-                </View>
-              </View>
-              <Text style={[styles.cardTitle, styles.cardTitleOnDark]}>
-                Alerts
-              </Text>
-              <Text style={[styles.cardValue, styles.cardValueOnDark]}>On</Text>
             </TouchableOpacity>
 
             {/* Language Card */}

@@ -6,8 +6,9 @@ import {
   Dimensions,
   ScrollView,
   Alert,
+  Animated,
 } from "react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -18,55 +19,140 @@ import { useFocusEffect } from "@react-navigation/native";
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const bottomSpace = (insets?.bottom || 16) + 120; // extra padding to clear floating tab bar
-  const chartData = [50, 10, 40, 95, 85, 35, 70];
+
+  const [chartData, setChartData] = useState([0, 0, 0, 0, 0, 0, 0]);
+  const [chartLabels, setChartLabels] = useState([
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun",
+  ]);
 
   const [currentamount, SetcurrentAmount] = useState(0);
   const [montlyadded, SetMonthlyadded] = useState(0);
   const [montlyExpense, SetMonthlyExpense] = useState(0);
+  const [todayExpense, SetTodayExpense] = useState(0);
+  const [weeklyTotal, SetWeeklyTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 1300,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmerAnim]);
+
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-120, 220],
+  });
+
+  const SkeletonBlock = ({ style, light }) => (
+    <View
+      style={[
+        styles.skeletonBase,
+        light ? styles.skeletonBaseLight : styles.skeletonBaseDark,
+        style,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.shimmer,
+          {
+            transform: [{ translateX: shimmerTranslate }, { skewX: "-18deg" }],
+          },
+        ]}
+      />
+    </View>
+  );
 
   const getuserdata = async () => {
-    const { data } = await supabase.auth.getUser();
-    const username = data.user.user_metadata.full_name;
-    const userid = data.user.id;
+    setIsLoading(true);
+    try {
+      const { data } = await supabase.auth.getUser();
+      const userid = data.user.id;
 
-    const { data: getCurrentbalance, error: errorcurrentbalance } =
-      await supabase
-        .from("useramount")
-        .select("addedamount")
-        .eq("userid", userid)
-        .single();
-    SetcurrentAmount(getCurrentbalance.addedamount);
+      const { data: getCurrentbalance, error: errorcurrentbalance } =
+        await supabase
+          .from("useramount")
+          .select("addedamount")
+          .eq("userid", userid)
+          .single();
+      SetcurrentAmount(getCurrentbalance?.addedamount ?? 0);
 
-    if (errorcurrentbalance) {
-      Alert.alert("Cant Get Current Balance!");
-    }
-
-    const { data: totaladded, error: errortotaladded } = await supabase.rpc(
-      "get_monthly_amounts",
-      {
-        user_id: userid,
+      if (errorcurrentbalance) {
+        Alert.alert("Cant Get Current Balance!");
       }
-    );
 
-    if (errortotaladded) {
-      console.error(errortotaladded);
-    }
+      const { data: totaladded, error: errortotaladded } = await supabase.rpc(
+        "get_monthly_amounts",
+        {
+          user_id: userid,
+        }
+      );
 
-    const { data: totalspent, error: errortotalspent } = await supabase.rpc(
-      "get_monthly_expense",
-      {
-        user_id: userid,
+      if (errortotaladded) {
+        console.error(errortotaladded);
       }
-    );
 
-    if (errortotalspent) {
-      console.error(errortotalspent);
+      const { data: totalspent, error: errortotalspent } = await supabase.rpc(
+        "get_monthly_expense",
+        {
+          user_id: userid,
+        }
+      );
+
+      if (errortotalspent) {
+        console.error(errortotalspent);
+      }
+
+      const { data: todayexpense, error } = await supabase.rpc(
+        "get_todays_expense_sum",
+        {
+          user_id_input: userid,
+        }
+      );
+
+      if (error) {
+        console.error(error);
+      }
+
+      const { data: weeklyData, error: errorWeeklyData } = await supabase.rpc(
+        "get_last_7_days_expenses",
+        {
+          user_id_input: userid,
+        }
+      );
+
+      if (errorWeeklyData) {
+        console.error(errorWeeklyData);
+      } else if (weeklyData) {
+        const labels = weeklyData.map((item) => item.day_label);
+        const amounts = weeklyData.map((item) => item.total_amount);
+        setChartLabels(labels);
+        setChartData(
+          amounts.every((a) => a === 0) ? [0, 0, 0, 0, 0, 0, 0] : amounts
+        );
+        SetWeeklyTotal(amounts.reduce((sum, val) => sum + val, 0));
+      }
+
+      SetTodayExpense(todayexpense);
+      SetMonthlyadded(totaladded?.[0]?.total_amount ?? 0);
+      SetMonthlyExpense(totalspent?.[0]?.total_amount ?? 0);
+    } catch (err) {
+      console.error("getuserdata error", err);
+    } finally {
+      setIsLoading(false);
     }
-
-
-    SetMonthlyadded(totaladded[0].total_amount);
-    SetMonthlyExpense(totalspent[0].total_amount)
-    console.log(totalspent);
   };
 
   useFocusEffect(
@@ -94,7 +180,7 @@ const HomeScreen = () => {
             </View>
 
             <Image
-              source={{ uri: "https://i.pravatar.cc/150?img=10" }}
+                   source={{ uri: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150" }}
               style={styles.profileImage}
             />
           </View>
@@ -109,38 +195,95 @@ const HomeScreen = () => {
 
           {/* MAIN BALANCE CARD */}
           <View style={styles.mainCard}>
-            <Text style={styles.label}>Current Balance</Text>
-            <Text style={styles.bigAmount}>${currentamount}</Text>
-
-            <View style={styles.rowBetween}>
-              <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Income</Text>
-                <Text style={[styles.statValue, { color: "#00E676" }]}>
-                  ${montlyadded}
-                </Text>
+            {isLoading ? (
+              <View style={styles.skeletonStack}>
+                <SkeletonBlock style={[styles.skeletonLine, styles.skeletonLabel]} />
+                <SkeletonBlock style={[styles.skeletonLine, styles.skeletonBig]} />
+                <View style={styles.rowBetween}>
+                  <View style={styles.statBlock}>
+                    <SkeletonBlock
+                      style={[styles.skeletonLine, styles.skeletonSmall]}
+                    />
+                    <SkeletonBlock
+                      style={[styles.skeletonLine, styles.skeletonStat]}
+                    />
+                  </View>
+                  <View style={styles.statBlock}>
+                    <SkeletonBlock
+                      style={[styles.skeletonLine, styles.skeletonSmall]}
+                    />
+                    <SkeletonBlock
+                      style={[styles.skeletonLine, styles.skeletonStat]}
+                    />
+                  </View>
+                </View>
               </View>
+            ) : (
+              <>
+                <Text style={styles.label}>Current Balance</Text>
+                <Text style={styles.bigAmount}>${currentamount}</Text>
 
-              <View style={styles.statBlock}>
-                <Text style={styles.statLabel}>Expenses</Text>
-                <Text style={[styles.statValue, { color: "#FF5252" }]}>
-                  ${montlyExpense}
-                </Text>
-              </View>
-            </View>
+                <View style={styles.rowBetween}>
+                  <View style={styles.statBlock}>
+                    <Text style={styles.statLabel}>Income</Text>
+                    <Text style={[styles.statValue, { color: "#00E676" }]}>
+                      ${montlyadded}
+                    </Text>
+                  </View>
+
+                  <View style={styles.statBlock}>
+                    <Text style={styles.statLabel}>Expenses</Text>
+                    <Text style={[styles.statValue, { color: "#FF5252" }]}>
+                      ${montlyExpense}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
           {/* QUICK CARDS */}
           <View style={styles.quickRow}>
             <View style={styles.quickCard}>
               <View style={[styles.accentBar, styles.accentThird]} />
-              <Text style={styles.quickLabel}>Today’s Spend</Text>
-              <Text style={styles.quickAmount}>$32.50</Text>
+              {isLoading ? (
+                <>
+                  <SkeletonBlock
+                    light
+                    style={[styles.skeletonLine, styles.skeletonSmall]}
+                  />
+                  <SkeletonBlock
+                    light
+                    style={[styles.skeletonLine, styles.skeletonAmount]}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.quickLabel}>Today’s Spend</Text>
+                  <Text style={styles.quickAmount}>${todayExpense}</Text>
+                </>
+              )}
             </View>
 
             <View style={styles.quickCard2}>
               <View style={[styles.accentBar, styles.accentForth]} />
-              <Text style={styles.quickLabel}>Week Total</Text>
-              <Text style={styles.quickAmount}>$138.92</Text>
+              {isLoading ? (
+                <>
+                  <SkeletonBlock
+                    light
+                    style={[styles.skeletonLine, styles.skeletonSmall]}
+                  />
+                  <SkeletonBlock
+                    light
+                    style={[styles.skeletonLine, styles.skeletonAmount]}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.quickLabel}>Week Total</Text>
+                  <Text style={styles.quickAmount}>${weeklyTotal}</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -160,42 +303,46 @@ const HomeScreen = () => {
               </View>
               <Text style={styles.chartDelta}>+12%</Text>
             </View>
-            <LineChart
-              data={{
-                labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                datasets: [
-                  {
-                    data: chartData,
+            {isLoading ? (
+              <SkeletonBlock light style={styles.chartSkeleton} />
+            ) : (
+              <LineChart
+                data={{
+                  labels: chartLabels,
+                  datasets: [
+                    {
+                      data: chartData,
+                    },
+                  ],
+                }}
+                width={Dimensions.get("window").width - 74}
+                height={180}
+                chartConfig={{
+                  backgroundColor: Colors.CARD,
+                  backgroundGradientFrom: Colors.CARD,
+                  backgroundGradientTo: Colors.CARD,
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => Colors.SECOND,
+                  labelColor: (opacity = 1) => Colors.MUTED,
+                  style: {
+                    borderRadius: 16,
                   },
-                ],
-              }}
-              width={Dimensions.get("window").width - 74}
-              height={180}
-              chartConfig={{
-                backgroundColor: Colors.CARD,
-                backgroundGradientFrom: Colors.CARD,
-                backgroundGradientTo: Colors.CARD,
-                decimalPlaces: 0,
-                color: (opacity = 1) => Colors.SECOND,
-                labelColor: (opacity = 1) => Colors.MUTED,
-                style: {
+                  propsForDots: {
+                    r: "4",
+                    strokeWidth: "2",
+                    stroke: Colors.FORTH,
+                    fill: Colors.FORTH,
+                  },
+                  propsForBackgroundLines: {
+                    stroke: "rgba(72, 66, 109, 0.1)",
+                  },
+                }}
+                bezier
+                style={{
                   borderRadius: 16,
-                },
-                propsForDots: {
-                  r: "4",
-                  strokeWidth: "2",
-                  stroke: Colors.FORTH,
-                  fill: Colors.FORTH,
-                },
-                propsForBackgroundLines: {
-                  stroke: "rgba(72, 66, 109, 0.1)",
-                },
-              }}
-              bezier
-              style={{
-                borderRadius: 16,
-              }}
-            />
+                }}
+              />
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -476,6 +623,57 @@ const styles = StyleSheet.create({
     color: Colors.SECOND,
     fontWeight: "800",
     fontSize: 16,
+  },
+  skeletonStack: {
+    gap: 10,
+  },
+  skeletonBase: {
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  skeletonBaseDark: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  skeletonBaseLight: {
+    backgroundColor: "rgba(72, 66, 109, 0.12)",
+  },
+  skeletonLine: {
+    height: 12,
+    borderRadius: 999,
+  },
+  skeletonLabel: {
+    width: 120,
+  },
+  skeletonBig: {
+    height: 34,
+    width: 160,
+  },
+  skeletonSmall: {
+    width: 80,
+    height: 10,
+  },
+  skeletonStat: {
+    width: 70,
+    height: 18,
+    marginTop: 8,
+  },
+  skeletonAmount: {
+    width: 100,
+    height: 20,
+    marginTop: 8,
+  },
+  chartSkeleton: {
+    height: 180,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
+  },
+  shimmer: {
+    position: "absolute",
+    top: -10,
+    bottom: -10,
+    width: 80,
+    backgroundColor: "rgba(255, 255, 255, 0.35)",
   },
 });
 
