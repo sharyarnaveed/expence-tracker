@@ -5,6 +5,7 @@ import Profile from "../home/Profile";
 import { Feather } from "@expo/vector-icons";
 import AddExpense from "../home/Add";
 import AntDesign from '@expo/vector-icons/AntDesign';
+import Transactions from "../home/Transactions";
 const Tab = createBottomTabNavigator();
 
 export default function TabsNavigator() {
@@ -60,6 +61,7 @@ export default function TabsNavigator() {
           ),
         }}
       />
+   
 <Tab.Screen
       name="Add"
       component={AddExpense}
@@ -68,6 +70,15 @@ export default function TabsNavigator() {
           <AntDesign name="plus" size={size} color={color} />
           ),
       }}/>
+         <Tab.Screen
+        name="Transactions"
+        component={Transactions}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="list" color={color} size={size} />
+          ),
+        }}
+      />
       <Tab.Screen
         name="Profile"
         component={Profile}

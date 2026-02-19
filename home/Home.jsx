@@ -14,7 +14,7 @@ import {
 } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import { supabase } from "../lib/SupabaseClient";
-
+import { useFocusEffect } from "@react-navigation/native";
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const bottomSpace = (insets?.bottom || 16) + 120; // extra padding to clear floating tab bar
@@ -69,9 +69,12 @@ const HomeScreen = () => {
     console.log(totalspent);
   };
 
-  useEffect(() => {
-    getuserdata();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      getuserdata();
+    }, [])
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.heroBackdrop}>

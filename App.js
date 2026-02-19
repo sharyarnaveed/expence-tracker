@@ -5,7 +5,7 @@ import TabsNavigator from './navigation/navigation';
 import SignIn from './auth/SignIn';
 
 import { supabase } from './lib/SupabaseClient';
-import SignUp from './auth/SignUp';
+import SignUp from './auth/Signup';
 
 const Stack = createNativeStackNavigator();
 

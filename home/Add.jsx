@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Keyboard,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -18,7 +19,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { supabase } from "../lib/SupabaseClient";
-import { Picker } from "@react-native-picker/picker";
+import { Feather } from "@expo/vector-icons";
 
 const Colors = {
   DARK: "#312C51",
@@ -210,6 +211,8 @@ export default function AddExpense() {
           })
           .single();
         if (Datasubmiterror) {
+          console.log(Datasubmiterror);
+
           Alert.alert("Error in Adding Expense!");
         } else {
           const { data: addAmountdata, error: incomeError } = await supabase
@@ -236,6 +239,7 @@ export default function AddExpense() {
           }
 
           Alert.alert("Expense added!");
+          Keyboard.dismiss();
           setAmount(0);
           Setcategory("");
           SetNotes("");
@@ -284,6 +288,7 @@ export default function AddExpense() {
           return;
         }
         Alert.alert("Expense added!");
+        Keyboard.dismiss();
         setAmount(0);
         Setcategory("");
         SetNotes("");
@@ -335,6 +340,7 @@ export default function AddExpense() {
           }
 
           Alert.alert("Amount added!");
+          Keyboard.dismiss();
           setAmount(0);
         }
       }
@@ -342,6 +348,8 @@ export default function AddExpense() {
       console.log("error in submitting income", error);
     }
   };
+
+  const selectedCategory = thecat.find((item) => item.id === category);
 
   return (
     <KeyboardAvoidingView
@@ -374,14 +382,11 @@ export default function AddExpense() {
               ]}
             >
               <View style={styles.tabIconBadge}>
-                <Text
-                  style={[
-                    styles.tabIcon,
-                    tab === "expense" && styles.tabIconActive,
-                  ]}
-                >
-                  💸
-                </Text>
+                <Feather
+                  name="trending-down"
+                  size={18}
+                  color={tab === "expense" ? Colors.DARK : Colors.SECOND}
+                />
               </View>
               <View style={styles.tabTextGroup}>
                 <Text
@@ -403,6 +408,8 @@ export default function AddExpense() {
               </View>
             </TouchableOpacity>
 
+            <View style={styles.tabButtonSpacer} />
+
             <TouchableOpacity
               onPress={() => SetTabs("amount")}
               activeOpacity={0.85}
@@ -412,14 +419,11 @@ export default function AddExpense() {
               ]}
             >
               <View style={styles.tabIconBadge}>
-                <Text
-                  style={[
-                    styles.tabIcon,
-                    tab === "amount" && styles.tabIconActive,
-                  ]}
-                >
-                  ➕
-                </Text>
+                <Feather
+                  name="plus-circle"
+                  size={18}
+                  color={tab === "amount" ? Colors.DARK : Colors.SECOND}
+                />
               </View>
               <View style={styles.tabTextGroup}>
                 <Text
@@ -443,6 +447,12 @@ export default function AddExpense() {
           </View>
           {tab === "expense" && (
             <View style={[styles.card, { marginBottom: bottomSpacing }]}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Expense Details</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Fill out the essentials to save quickly.
+                </Text>
+              </View>
               <View style={styles.amountSection}>
                 <Text style={styles.amountLabel}>Amount</Text>
                 <View style={styles.amountInputContainer}>
@@ -458,40 +468,110 @@ export default function AddExpense() {
                     placeholderTextColor="#CCC"
                   />
                 </View>
+                <View style={styles.quickAmountRow}>
+                  {["5", "10", "25", "50", "100"].map((value) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={styles.quickAmountChip}
+                      activeOpacity={0.85}
+                      onPress={() => setAmount(value)}
+                    >
+                      <Text style={styles.quickAmountText}>${value}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <View style={styles.divider} />
 
-              <Text style={styles.label}>📁 Category</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={category}
-                  onValueChange={(value) => Setcategory(value)}
-                  style={styles.picker}
-                  dropdownIconColor={Colors.DARK}
-                >
-                  <Picker.Item label="-- Select Category --" value={null} />
-                  {thecat.map((item) => (
-                    <Picker.Item
-                      key={item.id}
-                      label={item.name}
-                      value={item.id}
-                    />
-                  ))}
-                </Picker>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Category</Text>
+                <View style={styles.categoryHeaderRow}>
+                  <Text style={styles.categoryHint}>
+                    Tap a category that matches the expense.
+                  </Text>
+                  {selectedCategory ? (
+                    <View
+                      style={[
+                        styles.selectedBadge,
+                        { backgroundColor: selectedCategory.color },
+                      ]}
+                    >
+                      <Text style={styles.selectedBadgeText}>
+                        {selectedCategory.name}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.selectedBadgeMuted}>
+                      <Text style={styles.selectedBadgeTextMuted}>
+                        Not selected
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.categoryGrid}>
+                  {thecat.map((item) => {
+                    const isSelected = category === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[
+                          styles.categoryCard,
+                          isSelected && {
+                            backgroundColor: item.color,
+                            borderColor: item.color,
+                          },
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() => Setcategory(item.id)}
+                      >
+                        <View
+                          style={[
+                            styles.categoryIconWrap,
+                            isSelected && styles.categoryIconWrapSelected,
+                          ]}
+                        >
+                          <Feather
+                            name={item.icon}
+                            size={16}
+                            color={isSelected ? "white" : Colors.SECOND}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.categoryText,
+                            isSelected && styles.categoryTextSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
-              <Text style={styles.label}>📅 Date</Text>
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                style={styles.dateButton}
-                activeOpacity={0.7}
-              >
-                <View style={styles.dateContent}>
-                  <Text style={styles.dateText}>{date.toDateString()}</Text>
-                  <Text style={styles.dateIcon}>▼</Text>
-                </View>
-              </TouchableOpacity>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Date</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={styles.dateButton}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.dateContent}>
+                    <View style={styles.dateLeft}>
+                      <Feather
+                        name="calendar"
+                        size={16}
+                        color={Colors.SECOND}
+                      />
+                      <Text style={styles.dateText}>{date.toDateString()}</Text>
+                    </View>
+                    <Text style={styles.dateIcon}>▼</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
 
               {showDatePicker && (
                 <DateTimePicker
@@ -505,39 +585,49 @@ export default function AddExpense() {
                 />
               )}
 
-              <Text style={styles.label}>📝 Notes</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  placeholder="Add any additional notes..."
-                  multiline
-                  style={[styles.input, styles.notesInput]}
-                  value={notes}
-                  onChangeText={SetNotes}
-                  editable
-                  cursorColor={Colors.THIRD}
-                  placeholderTextColor="#AAA"
-                  textAlignVertical="top"
-                />
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Notes</Text>
+                  <Text style={styles.optionalLabel}>Optional</Text>
+                </View>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    placeholder="Add any additional notes..."
+                    multiline
+                    style={[styles.input, styles.notesInput]}
+                    value={notes}
+                    onChangeText={SetNotes}
+                    editable
+                    cursorColor={Colors.THIRD}
+                    placeholderTextColor="#AAA"
+                    textAlignVertical="top"
+                  />
+                </View>
               </View>
 
-              <Text style={styles.label}>📎 Upload Receipt (Optional)</Text>
-              <TouchableOpacity
-                onPress={pickImage}
-                style={styles.uploadButton}
-                activeOpacity={0.8}
-              >
-                <View style={styles.uploadContent}>
-                  <View style={styles.uploadIconCircle}>
-                    <Text style={styles.uploadIcon}>📷</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Upload Receipt (Optional)</Text>
+                <TouchableOpacity
+                  onPress={pickImage}
+                  style={styles.uploadButton}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.uploadContent}>
+                    <View style={styles.uploadIconCircle}>
+                      <Feather name="camera" size={18} color={Colors.DARK} />
+                    </View>
+                    <View>
+                      <Text style={styles.uploadText}>Add receipt image</Text>
+                      <Text style={styles.uploadSubtext}>
+                        JPG, PNG up to 10MB
+                      </Text>
+                    </View>
+                    <View style={styles.uploadArrow}>
+                      <Feather name="chevron-right" size={18} color={Colors.DARK} />
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.uploadText}>Choose Image</Text>
-                    <Text style={styles.uploadSubtext}>
-                      JPG, PNG up to 10MB
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
 
               {receipt && (
                 <View style={styles.receiptContainer}>
@@ -560,14 +650,24 @@ export default function AddExpense() {
                 activeOpacity={0.8}
               >
                 <View style={styles.saveButtonContent}>
-                  <Text style={styles.saveText}>Save Expense</Text>
-                  <Text style={styles.saveIcon}>✓</Text>
+                      <Text style={styles.saveText}>Save Expense</Text>
+                      <Feather
+                        name="check"
+                        size={18}
+                        color={Colors.THIRD}
+                      />
                 </View>
               </TouchableOpacity>
             </View>
           )}
           {tab === "amount" && (
             <View style={[styles.card, { marginBottom: bottomSpacing }]}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Add Income</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Keep your balance up to date.
+                </Text>
+              </View>
               <View style={styles.amountSection}>
                 <Text style={styles.amountLabel}>Amount</Text>
                 <View style={styles.amountInputContainer}>
@@ -583,6 +683,18 @@ export default function AddExpense() {
                     placeholderTextColor="#CCC"
                   />
                 </View>
+                <View style={styles.quickAmountRow}>
+                  {["100", "250", "500", "1000"].map((value) => (
+                    <TouchableOpacity
+                      key={value}
+                      style={styles.quickAmountChip}
+                      activeOpacity={0.85}
+                      onPress={() => setAmount(value)}
+                    >
+                      <Text style={styles.quickAmountText}>${value}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <TouchableOpacity
@@ -595,7 +707,11 @@ export default function AddExpense() {
               >
                 <View style={styles.saveButtonContent}>
                   <Text style={styles.saveText}>Save Amount</Text>
-                  <Text style={styles.saveIcon}>➜</Text>
+                  <Feather
+                    name="arrow-right"
+                    size={18}
+                    color={Colors.THIRD}
+                  />
                 </View>
               </TouchableOpacity>
             </View>
@@ -607,60 +723,40 @@ export default function AddExpense() {
 }
 
 const styles = StyleSheet.create({
-  pickerContainer: {
-    backgroundColor: Colors.LIGHT,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#E8E8E8",
-    overflow: "hidden",
-  },
   tabSwitch: {
     flexDirection: "row",
-    gap: 12,
     marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 8,
-    backgroundColor: "rgba(72, 66, 109, 0.06)",
-    borderRadius: 20,
+    marginBottom: 18,
+    padding: 6,
+    backgroundColor: "rgba(72, 66, 109, 0.05)",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(72, 66, 109, 0.14)",
+    borderColor: "rgba(72, 66, 109, 0.1)",
   },
   tabButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: Colors.CARD,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: Colors.LIGHT,
     borderWidth: 1,
-    borderColor: "rgba(72, 66, 109, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    borderColor: "rgba(72, 66, 109, 0.08)",
+    minHeight: 62,
   },
   tabButtonActive: {
     backgroundColor: Colors.THIRD,
     borderColor: Colors.THIRD,
-    shadowOpacity: 0.16,
-    elevation: 4,
   },
   tabIconBadge: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "rgba(72, 66, 109, 0.08)",
+    backgroundColor: "rgba(72, 66, 109, 0.06)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  },
-  tabIcon: {
-    fontSize: 20,
-  },
-  tabIconActive: {
-    color: Colors.DARK,
   },
   tabTextGroup: {
     flex: 1,
@@ -681,11 +777,6 @@ const styles = StyleSheet.create({
   tabSubLabelActive: {
     color: Colors.SECOND,
   },
-  picker: {
-    backgroundColor: Colors.LIGHT,
-    color: Colors.DARK,
-    fontSize: 16,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.LIGHT,
@@ -704,7 +795,7 @@ const styles = StyleSheet.create({
   heroBubble: {
     position: "absolute",
     backgroundColor: Colors.THIRD,
-    opacity: 0.32,
+    opacity: 0.22,
     borderRadius: 200,
   },
   heroBubbleOne: {
@@ -719,7 +810,7 @@ const styles = StyleSheet.create({
     bottom: -40,
     left: -50,
     backgroundColor: Colors.FORTH,
-    opacity: 0.3,
+    opacity: 0.22,
   },
   headerContainer: {
     paddingTop: 20,
@@ -738,17 +829,14 @@ const styles = StyleSheet.create({
   },
   header: {
     color: "white",
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: "900",
     textAlign: "center",
     letterSpacing: 0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.4)",
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
   },
   subHeader: {
     color: Colors.THIRD,
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 8,
     textAlign: "center",
     letterSpacing: 0.3,
@@ -789,30 +877,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.2,
   },
+  tabButtonSpacer: {
+    width: 10,
+  },
   card: {
     backgroundColor: Colors.CARD,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 28,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 15,
-    minHeight: 600,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 22,
     borderWidth: 1,
-    borderColor: "rgba(72, 66, 109, 0.08)",
+    borderColor: "rgba(72, 66, 109, 0.1)",
+    minHeight: 520,
+    shadowColor: "#1F1A32",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
+  },
+  sectionHeader: {
+    marginBottom: 18,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: Colors.DARK,
+  },
+  sectionSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.MUTED,
   },
   amountSection: {
-    backgroundColor: "rgba(241, 170, 155, 0.14)",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: Colors.THIRD,
+    backgroundColor: "#FFF",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 22,
+    borderWidth: 1.2,
+    borderColor: "rgba(240, 195, 131, 0.6)",
+    shadowColor: "#1F1A32",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   amountLabel: {
     fontSize: 14,
@@ -825,49 +932,161 @@ const styles = StyleSheet.create({
   amountInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 16,
-    paddingHorizontal: 16,
+    backgroundColor: Colors.LIGHT,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 4,
-    borderWidth: 2,
-    borderColor: Colors.THIRD,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
   },
   currencySymbol: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "800",
     color: Colors.THIRD,
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "700",
     color: Colors.DARK,
-    padding: 12,
+    paddingVertical: 10,
+  },
+  quickAmountRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -2,
+    marginTop: 12,
+  },
+  quickAmountChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(240, 195, 131, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(240, 195, 131, 0.6)",
+    margin: 4,
+  },
+  quickAmountText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.DARK,
   },
   divider: {
     height: 1,
     backgroundColor: "rgba(72, 66, 109, 0.12)",
-    marginVertical: 20,
+    marginVertical: 18,
+  },
+  fieldGroup: {
+    marginBottom: 18,
+  },
+  categoryHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  categoryHint: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.MUTED,
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  selectedBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  selectedBadgeText: {
+    color: "white",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  selectedBadgeMuted: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(72, 66, 109, 0.1)",
+  },
+  selectedBadgeTextMuted: {
+    color: Colors.SECOND,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  categoryCard: {
+    width: "48%",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
+    backgroundColor: "#FFF",
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingRight: 10,
+  },
+  categoryIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: "rgba(72, 66, 109, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryIconWrapSelected: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  categoryText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.DARK,
+  },
+  categoryTextSelected: {
+    color: "white",
   },
   label: {
-    fontSize: 15,
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.MUTED,
+    marginTop: 0,
+    marginBottom: 8,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  optionalLabel: {
+    fontSize: 11,
     fontWeight: "700",
     color: Colors.SECOND,
-    marginTop: 16,
-    marginBottom: 10,
-    letterSpacing: 0.3,
+    backgroundColor: "rgba(72, 66, 109, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: "hidden",
   },
   inputWrapper: {
     position: "relative",
   },
   input: {
-    backgroundColor: Colors.LIGHT,
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: "#FFF",
+    padding: 14,
+    borderRadius: 14,
     fontSize: 16,
-    borderWidth: 2,
-    borderColor: "#E8E8E8",
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
     color: Colors.DARK,
   },
   notesInput: {
@@ -875,55 +1094,53 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   dateButton: {
-    backgroundColor: Colors.THIRD,
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: Colors.THIRD,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
   },
   dateContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    padding: 14,
+  },
+  dateLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   dateText: {
     color: Colors.DARK,
     fontWeight: "700",
-    fontSize: 17,
+    fontSize: 16,
   },
   dateIcon: {
-    color: Colors.DARK,
+    color: Colors.MUTED,
     fontSize: 12,
     opacity: 0.6,
   },
   uploadButton: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.FORTH,
+    backgroundColor: Colors.LIGHT,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(241, 170, 155, 0.7)",
     borderStyle: "dashed",
     overflow: "hidden",
   },
   uploadContent: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 14,
   },
   uploadIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.FORTH,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(241, 170, 155, 0.35)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    marginRight: 12,
   },
   uploadIcon: {
     fontSize: 24,
@@ -938,6 +1155,15 @@ const styles = StyleSheet.create({
     color: Colors.MUTED,
     marginTop: 2,
   },
+  uploadArrow: {
+    marginLeft: "auto",
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "rgba(240, 195, 131, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   receiptContainer: {
     position: "relative",
     marginTop: 16,
@@ -945,17 +1171,9 @@ const styles = StyleSheet.create({
   receiptPreview: {
     width: "100%",
     height: 200,
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: Colors.THIRD,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
   },
   removeButton: {
     position: "absolute",
@@ -967,14 +1185,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.12)",
   },
   removeButtonText: {
     fontSize: 18,
@@ -983,34 +1195,28 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: Colors.SECOND,
-    borderRadius: 18,
+    borderRadius: 16,
     marginTop: 28,
     overflow: "hidden",
-    shadowColor: Colors.SECOND,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: "rgba(72, 66, 109, 0.25)",
+    shadowColor: "#1F1A32",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
   saveButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
+    padding: 14,
   },
   saveText: {
     color: "white",
     fontWeight: "900",
-    fontSize: 19,
-    letterSpacing: 1.2,
+    fontSize: 18,
+    letterSpacing: 0.6,
     marginRight: 8,
-  },
-  saveIcon: {
-    color: Colors.THIRD,
-    fontSize: 22,
-    fontWeight: "900",
   },
 });
