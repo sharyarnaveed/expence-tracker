@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TabsNavigator from './navigation/navigation';
 import SignIn from './auth/SignIn';
+import EditProfile from './home/EditProfile';
 
 import { supabase } from './lib/SupabaseClient';
 import SignUp from './auth/Signup';
@@ -33,14 +34,15 @@ export default function Router() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {
           session?(
-
-            <Stack.Screen  name="Tabs" component={TabsNavigator} />
+            <>
+              <Stack.Screen  name="Tabs" component={TabsNavigator} />
+              <Stack.Screen name="EditProfile" component={EditProfile} />
+            </>
           ):(
             <>
               <Stack.Screen name="SignIn" component={SignIn} />
-              <Stack.Screen name='SignUp' component={SignUp}/>
- 
-        </>
+              <Stack.Screen name="SignUp" component={SignUp} />
+            </>
           )
         }
 

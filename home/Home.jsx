@@ -16,10 +16,16 @@ import {
 import { LineChart } from "react-native-chart-kit";
 import { supabase } from "../lib/SupabaseClient";
 import { useFocusEffect } from "@react-navigation/native";
+
+const DEFAULT_AVATAR_URL =
+  "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150";
+
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const bottomSpace = (insets?.bottom || 16) + 120; // extra padding to clear floating tab bar
 
+  const [fullName, setFullName] = useState("User");
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR_URL);
   const [chartData, setChartData] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [chartLabels, setChartLabels] = useState([
     "Mon",
@@ -78,7 +84,13 @@ const HomeScreen = () => {
   const getuserdata = async () => {
     setIsLoading(true);
     try {
-      const { data } = await supabase.auth.getUser();
+      const { data, error: userError } = await supabase.auth.getUser();
+      if (userError || !data?.user) {
+        return;
+      }
+      const metadata = data.user.user_metadata ?? {};
+      setFullName(metadata.full_name ?? "User");
+      setAvatarUrl(metadata.avatar_url ?? DEFAULT_AVATAR_URL);
       const userid = data.user.id;
 
       const { data: getCurrentbalance, error: errorcurrentbalance } =
@@ -93,51 +105,88 @@ const HomeScreen = () => {
         Alert.alert("Cant Get Current Balance!");
       }
 
-      const { data: totaladded, error: errortotaladded } = await supabase.rpc(
-        "get_monthly_amounts",
-        {
-          user_id: userid,
-        }
-      );
+      // Monthly added: sum of amounts added to useramount this month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      const { data: monthlyAddedData, error: errortotaladded } = await supabase
+        .from("useramount")
+        .select("addedamount")
+        .eq("userid", userid)
+        .single();
 
       if (errortotaladded) {
         console.error(errortotaladded);
       }
 
-      const { data: totalspent, error: errortotalspent } = await supabase.rpc(
-        "get_monthly_expense",
-        {
-          user_id: userid,
-        }
-      );
+      // Monthly spent: sum of expenses this month
+      const { data: monthlySpentData, error: errortotalspent } = await supabase
+        .from("userhistory")
+        .select("amount")
+        .eq("userid", userid)
+        .gte("date", startOfMonth)
+        .lte("date", endOfMonth);
 
       if (errortotalspent) {
         console.error(errortotalspent);
       }
 
-      const { data: todayexpense, error } = await supabase.rpc(
-        "get_todays_expense_sum",
-        {
-          user_id_input: userid,
-        }
+      const monthlyExpenseTotal = (monthlySpentData || []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0
       );
 
-      if (error) {
-        console.error(error);
+      // Today's expense sum
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+      const { data: todayData, error: todayError } = await supabase
+        .from("userhistory")
+        .select("amount")
+        .eq("userid", userid)
+        .gte("date", todayStart)
+        .lte("date", todayEnd);
+
+      if (todayError) {
+        console.error(todayError);
       }
 
-      const { data: weeklyData, error: errorWeeklyData } = await supabase.rpc(
-        "get_last_7_days_expenses",
-        {
-          user_id_input: userid,
-        }
+      const todayexpense = (todayData || []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0
       );
+
+      // Last 7 days expenses
+      const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const last7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).toISOString();
+
+      const { data: last7Data, error: errorWeeklyData } = await supabase
+        .from("userhistory")
+        .select("amount, date")
+        .eq("userid", userid)
+        .gte("date", last7Start)
+        .lte("date", todayEnd);
 
       if (errorWeeklyData) {
         console.error(errorWeeklyData);
-      } else if (weeklyData) {
-        const labels = weeklyData.map((item) => item.day_label);
-        const amounts = weeklyData.map((item) => item.total_amount);
+      } else {
+        // Build a map for last 7 days
+        const dailyMap = {};
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+          const key = d.toISOString().slice(0, 10);
+          dailyMap[key] = { label: dayLabels[d.getDay()], total: 0 };
+        }
+        (last7Data || []).forEach((row) => {
+          const key = new Date(row.date).toISOString().slice(0, 10);
+          if (dailyMap[key]) {
+            dailyMap[key].total += Number(row.amount || 0);
+          }
+        });
+        const orderedKeys = Object.keys(dailyMap).sort();
+        const labels = orderedKeys.map((k) => dailyMap[k].label);
+        const amounts = orderedKeys.map((k) => dailyMap[k].total);
         setChartLabels(labels);
         setChartData(
           amounts.every((a) => a === 0) ? [0, 0, 0, 0, 0, 0, 0] : amounts
@@ -146,8 +195,8 @@ const HomeScreen = () => {
       }
 
       SetTodayExpense(todayexpense);
-      SetMonthlyadded(totaladded?.[0]?.total_amount ?? 0);
-      SetMonthlyExpense(totalspent?.[0]?.total_amount ?? 0);
+      SetMonthlyadded(monthlyAddedData?.addedamount ?? 0);
+      SetMonthlyExpense(monthlyExpenseTotal);
     } catch (err) {
       console.error("getuserdata error", err);
     } finally {
@@ -176,11 +225,11 @@ const HomeScreen = () => {
           <View style={styles.header}>
             <View>
               <Text style={styles.greeting}>Hello,</Text>
-              <Text style={styles.username}>Sharyar 👋</Text>
+              <Text style={styles.username}>{fullName} 👋</Text>
             </View>
 
             <Image
-                   source={{ uri: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150" }}
+              source={{ uri: avatarUrl || DEFAULT_AVATAR_URL }}
               style={styles.profileImage}
             />
           </View>

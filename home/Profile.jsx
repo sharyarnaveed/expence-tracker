@@ -5,51 +5,133 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  Linking,
+  Alert,
 } from "react-native";
-import React, { useEffect, useEffectEvent } from "react";
+import React, { useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/SupabaseClient";
 
-const Profile = () => {
+const DEFAULT_AVATAR_URL =
+  "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150";
 
-  const [fullname,setFullname]=React.useState("")
-  const [email,setEmail]=React.useState("")
+const Profile = ({ navigation }) => {
+  const [fullname, setFullname] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [avatarUrl, setAvatarUrl] = React.useState(DEFAULT_AVATAR_URL);
+  const [usertransactions, setUsertransactions] = React.useState(0);
+  const [usercategories, setUsercategories] = React.useState(0);
+  const [userage, setUserage] = React.useState(0);
 
+  const statsItems = [
+    { id: "transactions", label: "Transactions", value: usertransactions },
+    { id: "categories", label: "Categories", value: usercategories },
+    { id: "months", label: "Months", value: userage },
+  ];
 
-  const handleLogout=async()=>{
+  const openExternalLink = async (url) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert("Unable to open link");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      console.log("error while opening link", error);
+      Alert.alert("Unable to open link");
+    }
+  };
+
+  const accountItems = [
+    {
+      id: "edit-profile",
+      label: "Edit Profile",
+      onPress: () => navigation.navigate("EditProfile"),
+    },
+    {
+      id: "privacy-policy",
+      label: "Privacy Policy",
+      onPress: () =>
+        openExternalLink("https://expense-tracker-nu-rust-79.vercel.app/privacy-policy"),
+    },
+    {
+      id: "help-support",
+      label: "Help & Support",
+      onPress: () =>
+        openExternalLink(
+          "mailto:sharyarmalik430@gmail.com?subject=Expense%20Tracker%20Support",
+        ),
+    },
+  ];
+
+  const handleLogout = async () => {
     try {
       console.log("in logout");
-      
-     const {logout}= await supabase.auth.signOut()
-console.log(logout);
 
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.log("failed to log out", error);
+      }
     } catch (error) {
-      console.log("failed to log out",error);
-      
+      console.log("failed to log out", error);
     }
-  }
+  };
 
-  const GetUsersdata=async()=>{
-  try {
-    const {data,error}= await supabase.auth.getUser()
+  const GetUsersdata = async () => {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        return;
+      }
+      const metadata = data.user.user_metadata ?? {};
+      setEmail(data.user.email ?? "");
+      setFullname(metadata.full_name ?? "");
+      setAvatarUrl(metadata.avatar_url ?? DEFAULT_AVATAR_URL);
 
-    console.log(data,error);
-    if(data){
-      setEmail(data.user.email)
-      setFullname(data.user.user_metadata.full_name)
+      // ✅ Correct - count is an option in select()
+      const result = await supabase
+        .from("userhistory")
+        .select("*", { count: "exact" })
+        .eq("userid", data.user.id);
+
+      // Get distinct categories for this user
+      const { data: categoriesResult, error: categorieserror } = await supabase
+        .from("userhistory")
+        .select("categoryname")
+        .eq("userid", data.user.id);
+
+      if (categorieserror) {
+        console.log(categorieserror);
+      }
+
+      // Count unique categories
+      const uniqueCategories = categoriesResult
+        ? [...new Set(categoriesResult.map((r) => r.categoryname))]
+        : [];
+
+      // Calculate account age in months from auth created_at
+      const createdAt = new Date(data.user.created_at);
+      const now = new Date();
+      const ageMonths =
+        (now.getFullYear() - createdAt.getFullYear()) * 12 +
+        (now.getMonth() - createdAt.getMonth());
+      setUserage(ageMonths < 1 ? 1 : ageMonths);
+
+      setUsercategories(uniqueCategories.length);
+
+      setUsertransactions(result.count ?? 0);
+    } catch (error) {
+      console.log("error in getting users data", error);
     }
-    // ✅ Correct - count is an option in select()
-const result = await supabase.from("userhistory").select("*", { count: "exact" })
-    console.log(result);
-  } catch (error) {
-    console.log("error in getting users data",error);
-    
-  }
-  }
+  };
 
-  useEffect(()=>{
-    GetUsersdata()
-  },[])
+  useFocusEffect(
+    useCallback(() => {
+      GetUsersdata();
+    }, [])
+  );
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -61,7 +143,9 @@ const result = await supabase.from("userhistory").select("*", { count: "exact" }
           <View style={styles.headerSection}>
             <View style={styles.profileImageContainer}>
               <Image
-                source={{ uri: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150" }}
+                source={{
+                  uri: avatarUrl || DEFAULT_AVATAR_URL,
+                }}
                 style={styles.profileImage}
               />
               <View style={styles.statusDot} />
@@ -72,79 +156,51 @@ const result = await supabase.from("userhistory").select("*", { count: "exact" }
 
           {/* STATS ROW */}
           <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statNumber}>47</Text>
-              <Text style={styles.statLabel}>Transactions</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statNumber}>12</Text>
-              <Text style={styles.statLabel}>Categories</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statNumber}>3</Text>
-              <Text style={styles.statLabel}>Months</Text>
-            </View>
+            {statsItems.map((stat, index) => (
+              <React.Fragment key={stat.id}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+                {index !== statsItems.length - 1 && <View style={styles.statDivider} />}
+              </React.Fragment>
+            ))}
           </View>
 
           {/* SETTINGS TITLE */}
           <Text style={styles.sectionTitle}>Settings</Text>
 
-          {/* SETTINGS GRID */}
-          <View style={styles.settingsGrid}>
-            {/* Currency Card */}
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: Colors.THIRD }]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardBadge}>
-                  <Text style={styles.cardBadgeText}>CUR</Text>
-                </View>
+          {/* SETTINGS CARD */}
+          <View style={[styles.settingCard, { backgroundColor: Colors.THIRD }]}> 
+            <View style={styles.cardRow}>
+              <View style={styles.cardBadge}>
+                <Text style={styles.cardBadgeText}>CUR</Text>
               </View>
-              <Text style={styles.cardTitle}>Currency</Text>
-              <Text style={styles.cardValue}>USD ($)</Text>
-            </TouchableOpacity>
-
-            {/* Language Card */}
-            <TouchableOpacity
-              style={[styles.settingCard, { backgroundColor: Colors.SECOND }]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardBadge}>
-                  <Text style={styles.cardBadgeText}>LAN</Text>
-                </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle}>Currency</Text>
+                <Text style={styles.cardValue}>USD ($)</Text>
               </View>
-              <Text style={[styles.cardTitle, styles.cardTitleOnDark]}>
-                Language
-              </Text>
-              <Text style={[styles.cardValue, styles.cardValueOnDark]}>
-                English
-              </Text>
-            </TouchableOpacity>
+            </View>
           </View>
 
           {/* ACCOUNT SECTION */}
           <Text style={styles.sectionTitle}>Account</Text>
 
           <View style={styles.accountSection}>
-            <TouchableOpacity style={styles.accountItem}>
-              <View style={styles.accountIndicator} />
-              <Text style={styles.accountText}>Edit Profile</Text>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.accountItem}>
-              <View style={styles.accountIndicator} />
-              <Text style={styles.accountText}>Privacy & Security</Text>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.accountItem}>
-              <View style={styles.accountIndicator} />
-              <Text style={styles.accountText}>Help & Support</Text>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+            {accountItems.map((item, index) => (
+              <TouchableOpacity
+                key={item.id}
+                onPress={item.onPress}
+                style={[
+                  styles.accountItem,
+                  index !== accountItems.length - 1 && styles.accountItemBorder,
+                ]}
+              >
+                <View style={styles.accountIndicator} />
+                <Text style={styles.accountText}>{item.label}</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* LOGOUT BUTTON */}
@@ -266,33 +322,24 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 
-  /* SETTINGS GRID */
-  settingsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+  /* SETTINGS CARD */
+  settingCard: {
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 30,
   },
 
-  settingCard: {
-    width: "48%",
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 12,
-    minHeight: 120,
-  },
-
-  cardTop: {
+  cardRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
   },
 
   cardBadge: {
     backgroundColor: Colors.DARK,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 12,
+    marginRight: 15,
   },
 
   cardBadgeText: {
@@ -302,25 +349,21 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
+  cardInfo: {
+    flex: 1,
+  },
+
   cardTitle: {
     color: Colors.DARK,
     fontSize: 14,
     fontWeight: "600",
-    marginBottom: 4,
+    marginBottom: 2,
   },
 
   cardValue: {
     color: Colors.DARK,
     fontSize: 18,
     fontWeight: "800",
-  },
-
-  cardTitleOnDark: {
-    color: "white",
-  },
-
-  cardValueOnDark: {
-    color: "white",
   },
 
   /* ACCOUNT SECTION */
@@ -336,6 +379,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 15,
+  },
+
+  accountItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#ffffff15",
   },
 
   accountIndicator: {
