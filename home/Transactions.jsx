@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,16 @@ import {
   TouchableOpacity,
   Modal,
   Image,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/SupabaseClient";
 
 const Colors = {
   DARK: "#312C51",
@@ -24,6 +31,19 @@ const Colors = {
 
 const FILTERS = ["Category", "Date", "Amount"];
 const SORT_OPTIONS = ["Latest", "Highest", "Lowest", "A-Z"];
+const DATE_RANGES = [
+  { id: "all", label: "All" },
+  { id: "week", label: "This week" },
+  { id: "month", label: "This month" },
+  { id: "year", label: "This year" },
+];
+const AMOUNT_RANGES = [
+  { id: "all", label: "All" },
+  { id: "under50", label: "Under $50" },
+  { id: "50to500", label: "$50 – $500" },
+  { id: "over500", label: "Over $500" },
+];
+// Must match Add.jsx thecat (id + name) so category filter and display are correct. DB stores categoryname = id.
 const CATEGORIES = [
   { id: "food", name: "Food & Dining", color: "#FF6B6B" },
   { id: "groceries", name: "Groceries", color: "#4ECDC4" },
@@ -42,66 +62,90 @@ const CATEGORIES = [
   { id: "other", name: "Other", color: "#C8D6E5" },
 ];
 
-const TRANSACTIONS = [
-  {
-    id: "txn-1",
-    title: "Salary",
-    category: "Other",
-    date: "Feb 18, 2026",
-    amount: "+$3,200",
+// Icons by category id (same as Add.jsx thecat icons). DB stores categoryname = id.
+const CATEGORY_ICONS_BY_ID = {
+  food: "utensils",
+  groceries: "shopping-cart",
+  transport: "bus",
+  rent: "home",
+  utilities: "zap",
+  shopping: "shopping-bag",
+  health: "heart",
+  education: "book",
+  entertainment: "film",
+  subscriptions: "repeat",
+  travel: "map",
+  personal: "user",
+  gifts: "gift",
+  insurance: "shield",
+  other: "more-horizontal",
+};
+
+function formatDateKey(createdAt) {
+  const d = new Date(createdAt);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+const BUCKET_ADDIMAGES = "addimages";
+const SIGNED_URL_EXPIRY_SEC = 3600; // 1 hour
+
+function mapHistoryToTransaction(row) {
+  const { id, amount, categoryname, date, notes, created_at } = row;
+  const receiptUri =
+    row.receiptUri ??
+    (row.uploadimg
+      ? supabase.storage.from(BUCKET_ADDIMAGES).getPublicUrl(row.uploadimg).data.publicUrl
+      : null);
+  const amountNum = Number(amount);
+  // categoryname from DB is the category id (e.g. "food") as set in Add.jsx
+  const categoryId = categoryname || "other";
+  return {
+    id: `txn-${id}`,
+    title: notes || CATEGORIES.find((c) => c.id === categoryId)?.name || categoryId,
+    category: categoryId,
+    date,
+    amount: `-$${amountNum.toFixed(2)}`,
+    amountNum: -amountNum,
+    type: "expense",
+    icon: CATEGORY_ICONS_BY_ID[categoryId] || "dollar-sign",
+    receiptUri,
+    sortAt: new Date(created_at).getTime(),
+  };
+}
+
+async function getReceiptSignedUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from(BUCKET_ADDIMAGES)
+    .createSignedUrl(path, SIGNED_URL_EXPIRY_SEC);
+  return error ? null : data?.signedUrl ?? null;
+}
+
+function mapAddAmountToTransaction(row) {
+  const { id, amount, created_at } = row;
+  const date = formatDateKey(created_at);
+  const amountNum = Number(amount);
+  return {
+    id: `add-${id}`,
+    title: "Amount added",
+    category: "Income",
+    date,
+    amount: `+$${amountNum.toFixed(2)}`,
+    amountNum,
     type: "income",
-    icon: "briefcase",
-  },
-  {
-    id: "txn-2",
-    title: "Groceries",
-    category: "Food & Dining",
-    date: "Feb 18, 2026",
-    amount: "-$54.20",
-    type: "expense",
-    icon: "shopping-cart",
-    receiptUri:
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "txn-3",
-    title: "Netflix",
-    category: "Subscriptions",
-    date: "Feb 17, 2026",
-    amount: "-$14.99",
-    type: "expense",
-    icon: "monitor",
-  },
-  {
-    id: "txn-4",
-    title: "Freelance Project",
-    category: "Other",
-    date: "Feb 16, 2026",
-    amount: "+$780",
-    type: "income",
-    icon: "code",
-  },
-  {
-    id: "txn-5",
-    title: "Ride Share",
-    category: "Transportation",
-    date: "Feb 15, 2026",
-    amount: "-$21.75",
-    type: "expense",
-    icon: "navigation",
-    receiptUri:
-      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "txn-6",
-    title: "Coffee",
-    category: "Food & Dining",
-    date: "Feb 15, 2026",
-    amount: "-$6.50",
-    type: "expense",
-    icon: "coffee",
-  },
-];
+    icon: "plus-circle",
+    receiptUri: null,
+    sortAt: new Date(created_at).getTime(),
+  };
+}
+
+function formatCurrency(value) {
+  return "$" + Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function Transactions() {
   const insets = useSafeAreaInsets();
@@ -109,29 +153,210 @@ export default function Transactions() {
   const [activeFilter, setActiveFilter] = useState("Category");
   const [activeSort, setActiveSort] = useState("Latest");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [activeDateRange, setActiveDateRange] = useState("all");
+  const [activeAmountRange, setActiveAmountRange] = useState("all");
   const [isEditVisible, setIsEditVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isDetailVisible, setIsDetailVisible] = useState(false);
   const [detailTransaction, setDetailTransaction] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const filteredAndSortedTransactions = useMemo(() => {
+    let list = [...transactions];
+
+    if (activeFilter === "Category" && activeCategory !== "all") {
+      list = list.filter((item) => item.category === activeCategory);
+    }
+
+    if (activeFilter === "Date" && activeDateRange !== "all") {
+      const now = Date.now();
+      const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+      const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+      list = list.filter((item) => {
+        const t = item.sortAt || 0;
+        if (activeDateRange === "week") return t >= weekAgo;
+        if (activeDateRange === "month") return t >= monthStart;
+        if (activeDateRange === "year") return t >= yearStart;
+        return true;
+      });
+    }
+
+    if (activeFilter === "Amount" && activeAmountRange !== "all") {
+      list = list.filter((item) => {
+        const abs = Math.abs(item.amountNum || 0);
+        if (activeAmountRange === "under50") return abs < 50;
+        if (activeAmountRange === "50to500") return abs >= 50 && abs <= 500;
+        if (activeAmountRange === "over500") return abs > 500;
+        return true;
+      });
+    }
+
+    if (activeSort === "Latest") {
+      list.sort((a, b) => (b.sortAt || 0) - (a.sortAt || 0));
+    } else if (activeSort === "Highest") {
+      list.sort((a, b) => (b.amountNum ?? 0) - (a.amountNum ?? 0));
+    } else if (activeSort === "Lowest") {
+      list.sort((a, b) => (a.amountNum ?? 0) - (b.amountNum ?? 0));
+    } else if (activeSort === "A-Z") {
+      list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    }
+
+    return list;
+  }, [transactions, activeFilter, activeCategory, activeDateRange, activeAmountRange, activeSort]);
 
   const groupedTransactions = useMemo(() => {
-    return TRANSACTIONS.reduce((acc, item) => {
+    return filteredAndSortedTransactions.reduce((acc, item) => {
       if (!acc[item.date]) {
         acc[item.date] = [];
       }
       acc[item.date].push(item);
       return acc;
     }, {});
-  }, []);
+  }, [filteredAndSortedTransactions]);
+
+  const stats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    let thisMonthSpent = 0;
+    let totalIncome = 0;
+    transactions.forEach((item) => {
+      const inMonth = item.sortAt >= monthStart && item.sortAt <= monthEnd;
+      if (item.type === "expense" && inMonth) {
+        thisMonthSpent += Math.abs(item.amountNum || 0);
+      }
+      if (item.type === "income") {
+        totalIncome += item.amountNum || 0;
+      }
+    });
+    return {
+      totalEntries: transactions.length,
+      thisMonthSpent,
+      totalIncome,
+    };
+  }, [transactions]);
 
   const openEditModal = (transaction) => {
     setSelectedTransaction(transaction);
+    setEditTitle(transaction?.title ?? "");
+    setEditCategory(transaction?.category ?? "");
+    setEditAmount(transaction?.amountNum != null ? String(Math.abs(Number(transaction.amountNum))) : "");
+    setEditDate(transaction?.date ?? "");
     setIsEditVisible(true);
   };
 
   const closeEditModal = () => {
+    Keyboard.dismiss();
     setIsEditVisible(false);
     setSelectedTransaction(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedTransaction) return;
+    const rawId = selectedTransaction.id.startsWith("txn-")
+      ? selectedTransaction.id.replace("txn-", "")
+      : selectedTransaction.id.startsWith("add-")
+        ? selectedTransaction.id.replace("add-", "")
+        : null;
+    if (!rawId) return;
+    const newAmount = parseFloat(editAmount);
+    if (isNaN(newAmount) || newAmount <= 0) {
+      Alert.alert("Invalid amount", "Please enter a valid amount.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        Alert.alert("Error", "You must be signed in to save.");
+        return;
+      }
+      const userId = user.id;
+
+      if (selectedTransaction.type === "expense") {
+        const oldAmount = Math.abs(selectedTransaction.amountNum || 0);
+        const categoryIdToSave = CATEGORIES.find((c) => c.id === editCategory)
+          ? editCategory
+          : (CATEGORIES.find((c) => c.name === editCategory)?.id ?? editCategory);
+        const { error: updateHistoryError } = await supabase
+          .from("userhistory")
+          .update({
+            amount: newAmount,
+            notes: editTitle,
+            categoryname: categoryIdToSave,
+            date: editDate,
+          })
+          .eq("id", rawId)
+          .eq("userid", userId);
+        if (updateHistoryError) {
+          Alert.alert("Error", "Could not update expense. " + (updateHistoryError.message || ""));
+          return;
+        }
+        const { data: amountRow, error: amountError } = await supabase
+          .from("useramount")
+          .select("addedamount")
+          .eq("userid", userId)
+          .single();
+        if (amountError || !amountRow) {
+          Alert.alert("Error", "Could not read your balance.");
+          return;
+        }
+        const newBalance = amountRow.addedamount + oldAmount - newAmount;
+        const { error: updateAmountError } = await supabase
+          .from("useramount")
+          .update({ addedamount: newBalance })
+          .eq("userid", userId);
+        if (updateAmountError) {
+          Alert.alert("Error", "Expense updated but balance could not be updated.");
+        } else {
+          Alert.alert("Saved", "Expense updated. Your total amount has been adjusted.");
+        }
+      } else {
+        const oldAmount = selectedTransaction.amountNum || 0;
+        const { error: updateHistoryError } = await supabase
+          .from("addmounthistory")
+          .update({ amount: newAmount })
+          .eq("id", rawId)
+          .eq("userid", userId);
+        if (updateHistoryError) {
+          Alert.alert("Error", "Could not update income. " + (updateHistoryError.message || ""));
+          return;
+        }
+        const { data: amountRow, error: amountError } = await supabase
+          .from("useramount")
+          .select("addedamount")
+          .eq("userid", userId)
+          .single();
+        if (amountError || !amountRow) {
+          Alert.alert("Error", "Could not read your balance.");
+          return;
+        }
+        const newBalance = amountRow.addedamount - oldAmount + newAmount;
+        const { error: updateAmountError } = await supabase
+          .from("useramount")
+          .update({ addedamount: newBalance })
+          .eq("userid", userId);
+        if (updateAmountError) {
+          Alert.alert("Error", "Income updated but balance could not be updated.");
+        } else {
+          Alert.alert("Saved", "Income updated. Your total amount has been adjusted.");
+        }
+      }
+      closeEditModal();
+      getData();
+    } catch (err) {
+      console.log("handleSaveEdit error", err);
+      Alert.alert("Error", "Something went wrong.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openDetailModal = (transaction) => {
@@ -143,6 +368,56 @@ export default function Transactions() {
     setIsDetailVisible(false);
     setDetailTransaction(null);
   };
+
+
+  const getData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setTransactions([]);
+        return;
+      }
+      const userId = user.id;
+      const [historyRes, addAmountRes] = await Promise.all([
+        supabase.rpc("get_user_history", { p_userid: userId }),
+        supabase.rpc("get_add_amount_history", { p_userid: userId }),
+      ]);
+      if (historyRes.error) {
+        console.log("get_user_history error", historyRes.error);
+      }
+      if (addAmountRes.error) {
+        console.log("get_add_amount_history error", addAmountRes.error);
+      }
+      const historyRows = historyRes.data || [];
+      const historyWithReceiptUrls = await Promise.all(
+        historyRows.map(async (row) => {
+          const receiptUri = row.uploadimg
+            ? await getReceiptSignedUrl(row.uploadimg)
+            : null;
+          return { ...row, receiptUri: receiptUri ?? row.receiptUri };
+        })
+      );
+      const expenses = historyWithReceiptUrls.map(mapHistoryToTransaction);
+      const income = (addAmountRes.data || []).map(mapAddAmountToTransaction);
+      const combined = [...expenses, ...income].sort(
+        (a, b) => (b.sortAt || 0) - (a.sortAt || 0)
+      );
+      setTransactions(combined);
+    } catch (err) {
+      console.log("getData error", err);
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+useFocusEffect(
+  React.useCallback(() => {
+    getData();
+  }, [])
+);
 
   return (
     <View style={styles.container}>
@@ -160,7 +435,7 @@ export default function Transactions() {
             <View>
               <Text style={styles.pageTitle}>Transactions</Text>
               <Text style={styles.pageSubtitle}>
-                Track and edit your past entries
+                Your transaction history and added amounts
               </Text>
             </View>
             <TouchableOpacity style={styles.iconButton}>
@@ -171,17 +446,17 @@ export default function Transactions() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>Total Entries</Text>
-              <Text style={styles.summaryValue}>128</Text>
+              <Text style={styles.summaryValue}>{stats.totalEntries}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>This Month</Text>
-              <Text style={styles.summaryValue}>$1,948</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(stats.thisMonthSpent)}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>Income</Text>
-              <Text style={[styles.summaryValue, styles.incomeText]}>$3,980</Text>
+              <Text style={[styles.summaryValue, styles.incomeText]}>{formatCurrency(stats.totalIncome)}</Text>
             </View>
           </View>
 
@@ -282,6 +557,72 @@ export default function Transactions() {
             </ScrollView>
           )}
 
+          {activeFilter === "Date" && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRow}
+            >
+              {DATE_RANGES.map((item) => {
+                const selected = activeDateRange === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.categoryChip,
+                      selected ? styles.categoryChipActive : styles.categoryChipInactive,
+                    ]}
+                    onPress={() => setActiveDateRange(item.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selected
+                          ? styles.categoryChipTextActive
+                          : styles.categoryChipTextInactive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {activeFilter === "Amount" && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRow}
+            >
+              {AMOUNT_RANGES.map((item) => {
+                const selected = activeAmountRange === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.categoryChip,
+                      selected ? styles.categoryChipActive : styles.categoryChipInactive,
+                    ]}
+                    onPress={() => setActiveAmountRange(item.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selected
+                          ? styles.categoryChipTextActive
+                          : styles.categoryChipTextInactive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
           <View style={styles.blockHeader}>
             <Text style={styles.blockTitle}>Sorting</Text>
             <Text style={styles.blockHint}>Choose order</Text>
@@ -316,13 +657,31 @@ export default function Transactions() {
           </ScrollView>
 
           <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>All Transactions</Text>
+            <Text style={styles.listTitle}>Your transactions</Text>
             <TouchableOpacity style={styles.viewAllBtn}>
               <Text style={styles.viewAllText}>Export</Text>
             </TouchableOpacity>
           </View>
 
-          {Object.keys(groupedTransactions).map((date) => (
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="large" color={Colors.SECOND} />
+              <Text style={styles.loadingText}>Loading your transactions…</Text>
+            </View>
+          ) : transactions.length === 0 ? (
+            <View style={styles.loadingWrap}>
+              <Feather name="inbox" size={48} color={Colors.MUTED} />
+              <Text style={styles.loadingText}>No transactions yet</Text>
+              <Text style={styles.emptyHint}>Expenses and added amounts will appear here</Text>
+            </View>
+          ) : filteredAndSortedTransactions.length === 0 ? (
+            <View style={styles.loadingWrap}>
+              <Feather name="filter" size={48} color={Colors.MUTED} />
+              <Text style={styles.loadingText}>No transactions match your filters</Text>
+              <Text style={styles.emptyHint}>Try changing the filter or sort</Text>
+            </View>
+          ) : (
+          Object.keys(groupedTransactions).map((date) => (
             <View key={date} style={styles.groupCard}>
               <Text style={styles.groupDate}>{date}</Text>
               {groupedTransactions[date].map((item) => (
@@ -344,7 +703,7 @@ export default function Transactions() {
                     </View>
                     <View>
                       <Text style={styles.transactionTitle}>{item.title}</Text>
-                      <Text style={styles.transactionMeta}>{item.category}</Text>
+                      <Text style={styles.transactionMeta}>{CATEGORIES.find((c) => c.id === item.category)?.name ?? item.category}</Text>
                     </View>
                   </View>
 
@@ -381,7 +740,8 @@ export default function Transactions() {
                 </View>
               ))}
             </View>
-          ))}
+          ))
+          )}
         </ScrollView>
       </SafeAreaView>
 
@@ -391,7 +751,16 @@ export default function Transactions() {
         animationType="fade"
         onRequestClose={closeEditModal}
       >
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          />
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Transaction</Text>
@@ -400,61 +769,74 @@ export default function Transactions() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>Title</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={selectedTransaction?.title || ""}
-                editable={false}
-                placeholder="Transaction title"
-                placeholderTextColor={Colors.MUTED}
-              />
-            </View>
+            <ScrollView
+              style={styles.editModalScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>Title</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Transaction title"
+                  placeholderTextColor={Colors.MUTED}
+                  editable={selectedTransaction?.type !== "income"}
+                />
+              </View>
 
             <View style={styles.modalField}>
               <Text style={styles.modalLabel}>Category</Text>
               <TextInput
                 style={styles.modalInput}
-                value={selectedTransaction?.category || ""}
-                editable={false}
+                value={CATEGORIES.find((c) => c.id === editCategory)?.name ?? editCategory}
+                onChangeText={(text) => {
+                  const byName = CATEGORIES.find((c) => c.name === text);
+                  setEditCategory(byName ? byName.id : text);
+                }}
                 placeholder="Category"
                 placeholderTextColor={Colors.MUTED}
+                editable={selectedTransaction?.type !== "income"}
               />
             </View>
 
-            <View style={styles.modalRow}>
-              <View style={[styles.modalField, styles.modalHalf]}>
-                <Text style={styles.modalLabel}>Amount</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={selectedTransaction?.amount || ""}
-                  editable={false}
-                  placeholder="$0.00"
-                  placeholderTextColor={Colors.MUTED}
-                />
+              <View style={styles.modalRow}>
+                <View style={[styles.modalField, styles.modalHalf]}>
+                  <Text style={styles.modalLabel}>Amount</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editAmount}
+                    onChangeText={setEditAmount}
+                    placeholder="0.00"
+                    placeholderTextColor={Colors.MUTED}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={[styles.modalField, styles.modalHalf]}>
+                  <Text style={styles.modalLabel}>Date</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editDate}
+                    onChangeText={setEditDate}
+                    placeholder="Date"
+                    placeholderTextColor={Colors.MUTED}
+                    editable={selectedTransaction?.type !== "income"}
+                  />
+                </View>
               </View>
-              <View style={[styles.modalField, styles.modalHalf]}>
-                <Text style={styles.modalLabel}>Date</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={selectedTransaction?.date || ""}
-                  editable={false}
-                  placeholder="Date"
-                  placeholderTextColor={Colors.MUTED}
-                />
-              </View>
-            </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeEditModal}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={closeEditModal}>
-                <Text style={styles.saveBtnText}>Save Changes</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={closeEditModal} disabled={saving}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={saving}>
+                  <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save Changes"}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -493,6 +875,7 @@ export default function Transactions() {
                 <Image
                   source={{ uri: detailTransaction.receiptUri }}
                   style={styles.receiptImage}
+                  resizeMode="contain"
                 />
                 <View style={styles.receiptOverlay}>
                   <Text style={styles.receiptLabel}>Receipt Image</Text>
@@ -730,6 +1113,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: Colors.DARK,
   },
+  loadingWrap: {
+    paddingVertical: 32,
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: Colors.MUTED,
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: Colors.MUTED,
+    marginTop: 4,
+  },
   viewAllBtn: {
     backgroundColor: "rgba(241, 170, 155, 0.25)",
     borderRadius: 999,
@@ -853,6 +1250,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(72, 66, 109, 0.15)",
     padding: 16,
+  },
+  editModalScroll: {
+    maxHeight: 400,
   },
   modalHeader: {
     flexDirection: "row",
