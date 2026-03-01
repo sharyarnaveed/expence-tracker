@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "moneylynx",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/playstore.png",
     "ios": {
       "supportsTablet": true
@@ -24,6 +24,8 @@
       "output": "static"
     },
     "extra": {
+      "supabaseUrl": "https://wjvmwmlynvspxaclzwbe.supabase.co",
+      "supabasepulickeyKey": "sb_publishable_IMivytZ2fvSXh8__4RNb7Q_Ot5i0Bvc",
       "eas": {
         "projectId": "02c50cb8-a015-46c4-a852-3f85997d888a"
       }
