@@ -7,15 +7,15 @@
     "scheme": "moneylynx",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "icon": "./assets/playstore.png",
+    "icon": "./assets/moneylynx_icon_512x512.png",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.sharyar_naveed.MoneyLynx",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/playstore.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/moneylynx_icon_512x512.png",
+        "backgroundColor": "#312C51"
       },
       "edgeToEdgeEnabled": true
     },
@@ -34,10 +34,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/playstore.png",
+          "image": "./assets/moneylynx_icon_512x512.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#312C51"
         }
       ],
       "expo-secure-store",
