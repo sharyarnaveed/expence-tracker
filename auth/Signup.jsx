@@ -96,11 +96,13 @@ const SignUp = ({ navigation }) => {
               <Text style={styles.label}>Full Name</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
+                placeholder="Enter your Fullname"
                 placeholderTextColor="#999"
                 value={fullname}
                 onChangeText={setFullname}
                 keyboardType="default"
+                autoCapitalize="none"
+                autoCorrect={false}
                 editable
                 cursorColor="#F0C38E"
               />
@@ -140,7 +142,7 @@ const SignUp = ({ navigation }) => {
               <Text style={styles.label}> Re-Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
+                placeholder="Enter your Re-password"
                 placeholderTextColor="#999"
                 value={Repassword}
                 onChangeText={setRePassword}
