@@ -18,6 +18,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/SupabaseClient";
+import { formatMoney, normalizeCurrencyIso } from "../services/currencyUtils";
+import { getOrCreateUserCurrencyProfile } from "../services/userCurrencyService";
 
 const Colors = {
   DARK: "#312C51",
@@ -39,9 +41,9 @@ const DATE_RANGES = [
 ];
 const AMOUNT_RANGES = [
   { id: "all", label: "All" },
-  { id: "under50", label: "Under $50" },
-  { id: "50to500", label: "$50 – $500" },
-  { id: "over500", label: "Over $500" },
+  { id: "under50", label: "Under 50" },
+  { id: "50to500", label: "50 – 500" },
+  { id: "over500", label: "Over 500" },
 ];
 // Must match Add.jsx thecat (id + name) so category filter and display are correct. DB stores categoryname = id.
 const CATEGORIES = [
@@ -94,7 +96,7 @@ const BUCKET_ADDIMAGES = "addimages";
 const SIGNED_URL_EXPIRY_SEC = 3600; // 1 hour
 
 function mapHistoryToTransaction(row) {
-  const { id, amount, categoryname, date, notes, created_at } = row;
+  const { id, amount, categoryname, date, notes, created_at, currency_iso } = row;
   const receiptUri =
     row.receiptUri ??
     (row.uploadimg
@@ -108,8 +110,8 @@ function mapHistoryToTransaction(row) {
     title: notes || CATEGORIES.find((c) => c.id === categoryId)?.name || categoryId,
     category: categoryId,
     date,
-    amount: `-$${amountNum.toFixed(2)}`,
     amountNum: -amountNum,
+    currencyIso: normalizeCurrencyIso(currency_iso || "USD"),
     type: "expense",
     icon: CATEGORY_ICONS_BY_ID[categoryId] || "dollar-sign",
     receiptUri,
@@ -126,7 +128,7 @@ async function getReceiptSignedUrl(path) {
 }
 
 function mapAddAmountToTransaction(row) {
-  const { id, amount, created_at } = row;
+  const { id, amount, created_at, currency_iso } = row;
   const date = formatDateKey(created_at);
   const amountNum = Number(amount);
   return {
@@ -134,8 +136,8 @@ function mapAddAmountToTransaction(row) {
     title: "Amount added",
     category: "Income",
     date,
-    amount: `+$${amountNum.toFixed(2)}`,
     amountNum,
+    currencyIso: normalizeCurrencyIso(currency_iso || "USD"),
     type: "income",
     icon: "plus-circle",
     receiptUri: null,
@@ -143,8 +145,8 @@ function mapAddAmountToTransaction(row) {
   };
 }
 
-function formatCurrency(value) {
-  return "$" + Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatCurrency(value, currencyIso) {
+  return formatMoney(Math.abs(value), currencyIso || "USD");
 }
 
 export default function Transactions() {
@@ -166,6 +168,7 @@ export default function Transactions() {
   const [editAmount, setEditAmount] = useState("");
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [currencyIso, setCurrencyIso] = useState("USD");
 
   const filteredAndSortedTransactions = useMemo(() => {
     let list = [...transactions];
@@ -292,6 +295,7 @@ export default function Transactions() {
             notes: editTitle,
             categoryname: categoryIdToSave,
             date: editDate,
+            currency_iso: currencyIso,
           })
           .eq("id", rawId)
           .eq("userid", userId);
@@ -322,7 +326,7 @@ export default function Transactions() {
         const oldAmount = selectedTransaction.amountNum || 0;
         const { error: updateHistoryError } = await supabase
           .from("addmounthistory")
-          .update({ amount: newAmount })
+          .update({ amount: newAmount, currency_iso: currencyIso })
           .eq("id", rawId)
           .eq("userid", userId);
         if (updateHistoryError) {
@@ -379,6 +383,8 @@ export default function Transactions() {
         return;
       }
       const userId = user.id;
+      const profile = await getOrCreateUserCurrencyProfile(userId);
+      setCurrencyIso(normalizeCurrencyIso(profile.currencyIso || "USD"));
       const [historyRes, addAmountRes] = await Promise.all([
         supabase.rpc("get_user_history", { p_userid: userId }),
         supabase.rpc("get_add_amount_history", { p_userid: userId }),
@@ -451,12 +457,12 @@ useFocusEffect(
             <View style={styles.summaryDivider} />
             <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>This Month</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(stats.thisMonthSpent)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(stats.thisMonthSpent, currencyIso)}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>Income</Text>
-              <Text style={[styles.summaryValue, styles.incomeText]}>{formatCurrency(stats.totalIncome)}</Text>
+              <Text style={[styles.summaryValue, styles.incomeText]}>{formatCurrency(stats.totalIncome, currencyIso)}</Text>
             </View>
           </View>
 
@@ -716,7 +722,8 @@ useFocusEffect(
                           : styles.expenseText,
                       ]}
                     >
-                      {item.amount}
+                      {item.type === "income" ? "+" : "-"}
+                      {formatCurrency(item.amountNum, item.currencyIso)}
                     </Text>
                     <View style={styles.actionsRow}>
                       <TouchableOpacity
@@ -866,7 +873,11 @@ useFocusEffect(
                 {detailTransaction?.date || "Date"}
               </Text>
               <Text style={styles.detailAmount}>
-                {detailTransaction?.amount || "$0.00"}
+                {(detailTransaction?.type === "income" ? "+" : "-") +
+                  formatCurrency(
+                    detailTransaction?.amountNum ?? 0,
+                    detailTransaction?.currencyIso || currencyIso
+                  )}
               </Text>
             </View>
 

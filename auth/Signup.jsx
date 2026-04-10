@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import { supabase } from "../lib/SupabaseClient";
 import Checkbox from "expo-checkbox";
+import { DEFAULT_CURRENCY_ISO } from "../services/currencyUtils";
 
 const SignUp = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -58,14 +59,44 @@ const SignUp = ({ navigation }) => {
       const userid = data.user?.id;
 
       if (userid) {
-        const { data: CreateAmount, error: ErrorAmount } = await supabase
+        const { data: existingAmount } = await supabase
           .from("useramount")
-          .insert({
-            userid,
-          });
+          .select("id")
+          .eq("userid", userid)
+          .maybeSingle();
+
+        const amountQuery = existingAmount
+          ? supabase
+              .from("useramount")
+              .update({
+                currency_iso: DEFAULT_CURRENCY_ISO,
+                country_iso: null,
+                is_default_currency: true,
+              })
+              .eq("userid", userid)
+          : supabase
+              .from("useramount")
+              .insert({
+                userid,
+                currency_iso: DEFAULT_CURRENCY_ISO,
+                country_iso: null,
+                is_default_currency: true,
+              });
+
+        const { error: ErrorAmount } = await amountQuery;
 
         if (ErrorAmount) {
-          Alert.alert("Sign up failed");
+          console.log("useramount create/update error", ErrorAmount);
+        }
+
+        const { data: CreateAmount, error: CreateAmountError } = await supabase
+          .from("useramount")
+          .select("id")
+          .eq("userid", userid)
+          .maybeSingle();
+
+        if (CreateAmountError || !CreateAmount) {
+          Alert.alert("Sign up warning", "Account created but wallet setup is incomplete.");
         }
       }
 

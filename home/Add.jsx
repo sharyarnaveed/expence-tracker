@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import {
 } from "react-native-safe-area-context";
 import { supabase } from "../lib/SupabaseClient";
 import { Feather } from "@expo/vector-icons";
+import { getOrCreateUserCurrencyProfile } from "../services/userCurrencyService";
+import { getCurrencySymbol } from "../services/currencyUtils";
 
 const Colors = {
   DARK: "#312C51",
@@ -41,6 +43,7 @@ export default function AddExpense() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  const [currencySymbol, setCurrencySymbol] = useState("$");
   const thecat = [
     {
       id: "food",
@@ -193,11 +196,20 @@ export default function AddExpense() {
         Alert.alert("Missing fields");
         return;
       }
+      const { data: userData } = await supabase.auth.getUser();
+      const userid = userData?.user?.id;
+
+      if (!userid) {
+        Alert.alert("You must be signed in");
+        return;
+      }
+
+      const currencyProfile = await getOrCreateUserCurrencyProfile(userid);
+      const userCurrencyIso = currencyProfile.currencyIso;
+
       if (receipt) {
         //if we have image
-        const { data } = await supabase.auth.getUser();
-        const fileName = await uploadimage(data.user.id); // return only filename
-        const userid = data.user.id;
+        const fileName = await uploadimage(userid); // return only filename
 
         const { data: DataSubmit, error: Datasubmiterror } = await supabase
           .from("userhistory")
@@ -208,6 +220,7 @@ export default function AddExpense() {
             date,
             uploadimg: fileName, // ⬅️ store only filename
             notes,
+            currency_iso: userCurrencyIso,
           })
           .single();
         if (Datasubmiterror) {
@@ -229,7 +242,7 @@ export default function AddExpense() {
           const newamount = savedamount - Number(amount);
           const { error: IncomeUpdateError } = await supabase
             .from("useramount")
-            .update({ addedamount: newamount })
+            .update({ addedamount: newamount, currency_iso: userCurrencyIso })
             .eq("userid", userid);
 
           if (IncomeUpdateError) {
@@ -249,17 +262,15 @@ export default function AddExpense() {
       }
       // if no image
       else {
-        const { data } = await supabase.auth.getUser();
-        const userid = data.user.id;
-
         const { data: DataSubmit, error: Datasubmiterror } = await supabase
           .from("userhistory")
           .insert({
             amount,
-            userid: data.user.id, // make sure this matches
+            userid: userid, // make sure this matches
             categoryname: category,
             date,
             notes,
+            currency_iso: userCurrencyIso,
           })
           .single();
         if (Datasubmiterror) {
@@ -279,7 +290,7 @@ export default function AddExpense() {
         const newamount = savedamount - Number(amount);
         const { error: IncomeUpdateError } = await supabase
           .from("useramount")
-          .update({ addedamount: newamount })
+          .update({ addedamount: newamount, currency_iso: userCurrencyIso })
           .eq("userid", userid);
 
         if (IncomeUpdateError) {
@@ -308,6 +319,8 @@ export default function AddExpense() {
 
       const { data } = await supabase.auth.getUser();
       const userid = data.user.id;
+      const currencyProfile = await getOrCreateUserCurrencyProfile(userid);
+      const userCurrencyIso = currencyProfile.currencyIso;
       const { data: addAmountdata, error: incomeError } = await supabase
         .from("useramount")
         .select("*")
@@ -322,7 +335,7 @@ export default function AddExpense() {
         const newamount = savedamount + Number(amount);
         const { error: IncomeUpdateError } = await supabase
           .from("useramount")
-          .update({ addedamount: newamount })
+          .update({ addedamount: newamount, currency_iso: userCurrencyIso })
           .eq("userid", userid);
 
         if (IncomeUpdateError) {
@@ -333,7 +346,7 @@ export default function AddExpense() {
           const { data: addAmountdataHistory, error: incomeErrorHistory } =
             await supabase
               .from("addmounthistory")
-              .insert({ userid: userid, amount });
+              .insert({ userid: userid, amount, currency_iso: userCurrencyIso });
           if (incomeErrorHistory) {
             console.log(incomeErrorHistory);
             Alert.alert("Error in Adding Amount History!");
@@ -348,6 +361,23 @@ export default function AddExpense() {
       console.log("error in submitting income", error);
     }
   };
+
+  useEffect(() => {
+    const loadCurrencySymbol = async () => {
+      const { data } = await supabase.auth.getUser();
+      const userId = data?.user?.id;
+      if (!userId) return;
+
+      try {
+        const profile = await getOrCreateUserCurrencyProfile(userId);
+        setCurrencySymbol(getCurrencySymbol(profile.currencyIso));
+      } catch (_) {
+        setCurrencySymbol("$");
+      }
+    };
+
+    loadCurrencySymbol();
+  }, []);
 
   const selectedCategory = thecat.find((item) => item.id === category);
 
@@ -456,7 +486,7 @@ export default function AddExpense() {
               <View style={styles.amountSection}>
                 <Text style={styles.amountLabel}>Amount</Text>
                 <View style={styles.amountInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
+                  <Text style={styles.currencySymbol}>{currencySymbol}</Text>
                   <TextInput
                     placeholder="0.00"
                     keyboardType="numeric"
@@ -476,7 +506,7 @@ export default function AddExpense() {
                       activeOpacity={0.85}
                       onPress={() => setAmount(value)}
                     >
-                      <Text style={styles.quickAmountText}>${value}</Text>
+                      <Text style={styles.quickAmountText}>{currencySymbol}{value}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -671,7 +701,7 @@ export default function AddExpense() {
               <View style={styles.amountSection}>
                 <Text style={styles.amountLabel}>Amount</Text>
                 <View style={styles.amountInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
+                  <Text style={styles.currencySymbol}>{currencySymbol}</Text>
                   <TextInput
                     placeholder="0.00"
                     keyboardType="numeric"
@@ -691,7 +721,7 @@ export default function AddExpense() {
                       activeOpacity={0.85}
                       onPress={() => setAmount(value)}
                     >
-                      <Text style={styles.quickAmountText}>${value}</Text>
+                      <Text style={styles.quickAmountText}>{currencySymbol}{value}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>

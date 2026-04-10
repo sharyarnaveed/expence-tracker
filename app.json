@@ -41,7 +41,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow MoneyLynx to access your location to choose your default currency automatically."
+        }
+      ]
     ],
     "owner": "sharyar_naveed"
   }

@@ -7,11 +7,19 @@ import {
   ScrollView,
   Linking,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import React, { useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/SupabaseClient";
+import { Picker } from "@react-native-picker/picker";
+import { getCurrencySymbol, normalizeCurrencyIso } from "../services/currencyUtils";
+import {
+  convertAndPersistUserCurrency,
+  getOrCreateUserCurrencyProfile,
+} from "../services/userCurrencyService";
+import { getSupportedCurrencyCodes } from "../services/currencyService";
 
 const DEFAULT_AVATAR_URL =
   "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150";
@@ -23,6 +31,11 @@ const Profile = ({ navigation }) => {
   const [usertransactions, setUsertransactions] = React.useState(0);
   const [usercategories, setUsercategories] = React.useState(0);
   const [userage, setUserage] = React.useState(0);
+  const [countryIso, setCountryIso] = React.useState("--");
+  const [currencyIso, setCurrencyIso] = React.useState("USD");
+  const [selectedCurrencyIso, setSelectedCurrencyIso] = React.useState("USD");
+  const [supportedCurrencies, setSupportedCurrencies] = React.useState(["USD"]);
+  const [isConverting, setIsConverting] = React.useState(false);
 
   const statsItems = [
     { id: "transactions", label: "Transactions", value: usertransactions },
@@ -79,6 +92,36 @@ const Profile = ({ navigation }) => {
     }
   };
 
+  const handleCurrencyChange = async () => {
+    if (isConverting || selectedCurrencyIso === currencyIso) {
+      return;
+    }
+
+    setIsConverting(true);
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        Alert.alert("Error", "You must be signed in.");
+        return;
+      }
+
+      await convertAndPersistUserCurrency(data.user.id, selectedCurrencyIso);
+      const nextIso = normalizeCurrencyIso(selectedCurrencyIso);
+      setCurrencyIso(nextIso);
+      setSelectedCurrencyIso(nextIso);
+      Alert.alert("Success", `Currency updated to ${nextIso}.`);
+    } catch (error) {
+      console.log("currency conversion error", error);
+      Alert.alert(
+        "Conversion failed",
+        "Could not convert amounts right now. Values were not changed."
+      );
+      setSelectedCurrencyIso(currencyIso);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const GetUsersdata = async () => {
     try {
       const { data, error } = await supabase.auth.getUser();
@@ -95,6 +138,19 @@ const Profile = ({ navigation }) => {
         .from("userhistory")
         .select("*", { count: "exact" })
         .eq("userid", data.user.id);
+
+      const currencyProfile = await getOrCreateUserCurrencyProfile(data.user.id);
+      const profileCurrencyIso = normalizeCurrencyIso(currencyProfile.currencyIso || "USD");
+      setCurrencyIso(profileCurrencyIso);
+      setSelectedCurrencyIso(profileCurrencyIso);
+      setCountryIso((currencyProfile.countryIso || "--").toUpperCase());
+
+      try {
+        const codes = await getSupportedCurrencyCodes();
+        setSupportedCurrencies(codes.length ? codes : ["USD"]);
+      } catch (_) {
+        setSupportedCurrencies(["USD", profileCurrencyIso]);
+      }
 
       // Get distinct categories for this user
       const { data: categoriesResult, error: categorieserror } = await supabase
@@ -171,16 +227,49 @@ const Profile = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Settings</Text>
 
           {/* SETTINGS CARD */}
-          <View style={[styles.settingCard, { backgroundColor: Colors.THIRD }]}> 
+          <View style={styles.settingCard}>
             <View style={styles.cardRow}>
               <View style={styles.cardBadge}>
                 <Text style={styles.cardBadgeText}>CUR</Text>
               </View>
               <View style={styles.cardInfo}>
                 <Text style={styles.cardTitle}>Currency</Text>
-                <Text style={styles.cardValue}>USD ($)</Text>
+                <Text style={styles.cardValue}>
+                  {currencyIso} ({getCurrencySymbol(currencyIso)})
+                </Text>
+                <Text style={styles.cardMeta}>Country: {countryIso}</Text>
               </View>
             </View>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={selectedCurrencyIso}
+                onValueChange={(value) => setSelectedCurrencyIso(normalizeCurrencyIso(value))}
+                style={styles.picker}
+                dropdownIconColor={Colors.THIRD}
+              >
+                {supportedCurrencies.map((code) => (
+                  <Picker.Item
+                    key={code}
+                    label={`${code} (${getCurrencySymbol(code)})`}
+                    value={code}
+                  />
+                ))}
+              </Picker>
+            </View>
+            <TouchableOpacity
+              onPress={handleCurrencyChange}
+              disabled={isConverting || selectedCurrencyIso === currencyIso}
+              style={[
+                styles.currencyBtn,
+                (isConverting || selectedCurrencyIso === currencyIso) && styles.currencyBtnDisabled,
+              ]}
+            >
+              {isConverting ? (
+                <ActivityIndicator color={Colors.DARK} />
+              ) : (
+                <Text style={styles.currencyBtnText}>Convert and Apply</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* ACCOUNT SECTION */}
@@ -324,9 +413,12 @@ const styles = StyleSheet.create({
 
   /* SETTINGS CARD */
   settingCard: {
+    backgroundColor: Colors.SECOND,
     borderRadius: 20,
     padding: 18,
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: "#ffffff20",
   },
 
   cardRow: {
@@ -335,7 +427,7 @@ const styles = StyleSheet.create({
   },
 
   cardBadge: {
-    backgroundColor: Colors.DARK,
+    backgroundColor: Colors.THIRD,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -343,9 +435,9 @@ const styles = StyleSheet.create({
   },
 
   cardBadgeText: {
-    color: "white",
+    color: Colors.DARK,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: 1,
   },
 
@@ -354,16 +446,56 @@ const styles = StyleSheet.create({
   },
 
   cardTitle: {
-    color: Colors.DARK,
+    color: "#DCDCF2",
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 2,
   },
 
   cardValue: {
-    color: Colors.DARK,
+    color: "white",
     fontSize: 18,
     fontWeight: "800",
+  },
+
+  cardMeta: {
+    color: "#CFCFCF",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  pickerWrap: {
+    marginTop: 14,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: Colors.DARK,
+    borderWidth: 1,
+    borderColor: "#ffffff25",
+  },
+
+  picker: {
+    color: "white",
+    backgroundColor: Colors.DARK,
+  },
+
+  currencyBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.THIRD,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+
+  currencyBtnDisabled: {
+    opacity: 0.55,
+  },
+
+  currencyBtnText: {
+    color: Colors.DARK,
+    fontWeight: "800",
+    fontSize: 14,
   },
 
   /* ACCOUNT SECTION */

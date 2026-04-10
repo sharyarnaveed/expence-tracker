@@ -16,6 +16,8 @@ import {
 import { LineChart } from "react-native-chart-kit";
 import { supabase } from "../lib/SupabaseClient";
 import { useFocusEffect } from "@react-navigation/native";
+import { formatMoney } from "../services/currencyUtils";
+import { ensureUserCurrencyOnDashboardEntry } from "../services/userCurrencyService";
 
 const DEFAULT_AVATAR_URL =
   "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=150";
@@ -42,6 +44,8 @@ const HomeScreen = () => {
   const [montlyExpense, SetMonthlyExpense] = useState(0);
   const [todayExpense, SetTodayExpense] = useState(0);
   const [weeklyTotal, SetWeeklyTotal] = useState(0);
+  const [weeklyChangePct, setWeeklyChangePct] = useState(0);
+  const [currencyIso, setCurrencyIso] = useState("USD");
   const [isLoading, setIsLoading] = useState(true);
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
@@ -61,6 +65,14 @@ const HomeScreen = () => {
     inputRange: [0, 1],
     outputRange: [-120, 220],
   });
+
+  const toDateKey = (dateInput) => {
+    const d = new Date(dateInput);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
 
   const SkeletonBlock = ({ style, light }) => (
     <View
@@ -92,6 +104,9 @@ const HomeScreen = () => {
       setFullName(metadata.full_name ?? "User");
       setAvatarUrl(metadata.avatar_url ?? DEFAULT_AVATAR_URL);
       const userid = data.user.id;
+
+      const currencyProfile = await ensureUserCurrencyOnDashboardEntry(userid);
+      setCurrencyIso(currencyProfile.currencyIso || "USD");
 
       const { data: getCurrentbalance, error: errorcurrentbalance } =
         await supabase
@@ -157,9 +172,11 @@ const HomeScreen = () => {
         0
       );
 
-      // Last 7 days expenses
+      // Last 7 days expenses (current period)
       const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       const last7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).toISOString();
+      const prev7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13).toISOString();
+      const prev7End = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 23, 59, 59).toISOString();
 
       const { data: last7Data, error: errorWeeklyData } = await supabase
         .from("userhistory")
@@ -168,6 +185,13 @@ const HomeScreen = () => {
         .gte("date", last7Start)
         .lte("date", todayEnd);
 
+      const { data: prev7Data, error: errorPrevWeeklyData } = await supabase
+        .from("userhistory")
+        .select("amount")
+        .eq("userid", userid)
+        .gte("date", prev7Start)
+        .lte("date", prev7End);
+
       if (errorWeeklyData) {
         console.error(errorWeeklyData);
       } else {
@@ -175,23 +199,46 @@ const HomeScreen = () => {
         const dailyMap = {};
         for (let i = 6; i >= 0; i--) {
           const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-          const key = d.toISOString().slice(0, 10);
+          const key = toDateKey(d);
           dailyMap[key] = { label: dayLabels[d.getDay()], total: 0 };
         }
         (last7Data || []).forEach((row) => {
-          const key = new Date(row.date).toISOString().slice(0, 10);
+          const key = toDateKey(row.date);
           if (dailyMap[key]) {
             dailyMap[key].total += Number(row.amount || 0);
           }
         });
         const orderedKeys = Object.keys(dailyMap).sort();
         const labels = orderedKeys.map((k) => dailyMap[k].label);
-        const amounts = orderedKeys.map((k) => dailyMap[k].total);
+        const amounts = orderedKeys.map((k) =>
+          Number.isFinite(Number(dailyMap[k].total))
+            ? Number(dailyMap[k].total)
+            : 0
+        );
         setChartLabels(labels);
         setChartData(
           amounts.every((a) => a === 0) ? [0, 0, 0, 0, 0, 0, 0] : amounts
         );
-        SetWeeklyTotal(amounts.reduce((sum, val) => sum + val, 0));
+        const currentWeekTotal = amounts.reduce((sum, val) => sum + val, 0);
+        SetWeeklyTotal(currentWeekTotal);
+
+        if (errorPrevWeeklyData) {
+          console.error(errorPrevWeeklyData);
+          setWeeklyChangePct(0);
+        } else {
+          const previousWeekTotal = (prev7Data || []).reduce(
+            (sum, row) => sum + Number(row.amount || 0),
+            0
+          );
+
+          if (previousWeekTotal <= 0) {
+            setWeeklyChangePct(currentWeekTotal > 0 ? 100 : 0);
+          } else {
+            const pct =
+              ((currentWeekTotal - previousWeekTotal) / previousWeekTotal) * 100;
+            setWeeklyChangePct(Number.isFinite(pct) ? pct : 0);
+          }
+        }
       }
 
       SetTodayExpense(todayexpense);
@@ -270,20 +317,20 @@ const HomeScreen = () => {
             ) : (
               <>
                 <Text style={styles.label}>Current Balance</Text>
-                <Text style={styles.bigAmount}>${currentamount}</Text>
+                <Text style={styles.bigAmount}>{formatMoney(currentamount, currencyIso)}</Text>
 
                 <View style={styles.rowBetween}>
                   <View style={styles.statBlock}>
                     <Text style={styles.statLabel}>Income</Text>
                     <Text style={[styles.statValue, { color: "#00E676" }]}>
-                      ${montlyadded}
+                      {formatMoney(montlyadded, currencyIso)}
                     </Text>
                   </View>
 
                   <View style={styles.statBlock}>
                     <Text style={styles.statLabel}>Expenses</Text>
                     <Text style={[styles.statValue, { color: "#FF5252" }]}>
-                      ${montlyExpense}
+                      {formatMoney(montlyExpense, currencyIso)}
                     </Text>
                   </View>
                 </View>
@@ -309,7 +356,7 @@ const HomeScreen = () => {
               ) : (
                 <>
                   <Text style={styles.quickLabel}>Today’s Spend</Text>
-                  <Text style={styles.quickAmount}>${todayExpense}</Text>
+                  <Text style={styles.quickAmount}>{formatMoney(todayExpense, currencyIso)}</Text>
                 </>
               )}
             </View>
@@ -330,7 +377,7 @@ const HomeScreen = () => {
               ) : (
                 <>
                   <Text style={styles.quickLabel}>Week Total</Text>
-                  <Text style={styles.quickAmount}>${weeklyTotal}</Text>
+                  <Text style={styles.quickAmount}>{formatMoney(weeklyTotal, currencyIso)}</Text>
                 </>
               )}
             </View>
@@ -350,7 +397,16 @@ const HomeScreen = () => {
                   Smoothed average, last 7 days
                 </Text>
               </View>
-              <Text style={styles.chartDelta}>+12%</Text>
+              <Text
+                style={[
+                  styles.chartDelta,
+                  { color: weeklyChangePct >= 0 ? "#1B9C5A" : "#D9534F" },
+                ]}
+              >
+                {`${weeklyChangePct >= 0 ? "+" : ""}${Math.round(
+                  weeklyChangePct
+                )}%`}
+              </Text>
             </View>
             {isLoading ? (
               <SkeletonBlock light style={styles.chartSkeleton} />
